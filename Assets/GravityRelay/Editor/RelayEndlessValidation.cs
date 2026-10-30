@@ -41,6 +41,13 @@ namespace GravityRelay.Editor
                 Vector3 initialCamera = camera.transform.position;
                 Vector2 initialTarget = player.TargetPlanet.Center;
                 int initialPoolCount = course.PoolCount;
+                var physics = new SerializedObject(player);
+                string[] protectedFields = { "launchSpeed", "gravityStrength", "maxAcceleration",
+                    "orbitDegreesPerSecond", "captureMargin", "captureDuration" };
+                var originalPhysics = new float[protectedFields.Length];
+                for (int i = 0; i < protectedFields.Length; i++)
+                    originalPhysics[i] = physics.FindProperty(protectedFields[i]).floatValue;
+                ValidateDifficultyCurve(course);
                 float dt = Time.fixedDeltaTime;
                 int maxActive = 0;
                 for (int leg = 0; leg < 100; leg++)
@@ -50,6 +57,13 @@ namespace GravityRelay.Editor
                         player.Simulate(dt);
                     Require(player.CanLaunch, "Camera never settled on leg " + leg);
                     Require(player.TargetPlanet.Center.y > player.CurrentPlanet.Center.y, "Target must be above player.");
+                    course.GetGenerationLimits(player.Score, out float minimumGap, out float maximumGap, out float maximumStep);
+                    Vector2 separation = player.TargetPlanet.Center - player.CurrentPlanet.Center;
+                    Require(separation.y >= minimumGap - 0.001f && separation.y <= maximumGap + 0.001f,
+                        "Generated height violates the score's difficulty range.");
+                    Require(Mathf.Abs(separation.x) <= maximumStep + 0.001f &&
+                        Mathf.Abs(player.TargetPlanet.Center.x) <= course.AbsoluteHorizontalLimit + 0.001f,
+                        "Generated lateral step violates the score's difficulty range.");
                     Require(player.TryFindLaunchWait(player.CurrentPlanet, player.TargetPlanet.Center,
                         player.TargetPlanet.Radius, course.FramedBounds, out int wait), "Unreachable target on leg " + leg);
                     for (int tick = 0; tick < wait; tick++) player.Simulate(dt);
@@ -81,6 +95,10 @@ namespace GravityRelay.Editor
                 }
                 Require(player.Score == 100 && camera.transform.position.y > initialCamera.y + 200f,
                     "Course did not continue upward.");
+                physics.Update();
+                for (int i = 0; i < protectedFields.Length; i++)
+                    Require(physics.FindProperty(protectedFields[i]).floatValue == originalPhysics[i],
+                        "Progression altered player physics: " + protectedFields[i]);
                 player.Restart();
                 Require(player.Score == 0 && player.CanLaunch && course.ActiveCount == 2 && course.PoolCount == initialPoolCount,
                     "Restart failed to reset/reuse the pool.");
@@ -106,11 +124,35 @@ namespace GravityRelay.Editor
                 Require(player.State == RelayState.Dead && player.FailureReason == "FLIGHT TIME EXPIRED",
                     "Flight timeout failed.");
                 Debug.Log("RELAY_ENDLESS_PASSED: 100 landings, upward targets, frozen flight camera, no overlaps, " +
-                    "pool=" + initialPoolCount + ", peak active=" + maxActive + ", restart, screen exit and timeout.");
+                    "pool=" + initialPoolCount + ", peak active=" + maxActive +
+                    ", difficulty ranges/caps, unchanged physics, restart, screen exit and timeout.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        private static void ValidateDifficultyCurve(RelayEndlessCourse course)
+        {
+            course.GetGenerationLimits(0, out float firstMin, out float firstMax, out float firstStep);
+            float lastMin = firstMin;
+            float lastMax = firstMax;
+            float lastStep = firstStep;
+            int finalScore = course.FullDifficultyAtScore;
+            for (int score = 0; score <= finalScore + 10; score++)
+            {
+                course.GetGenerationLimits(score, out float min, out float max, out float step);
+                Require(min >= lastMin && max >= lastMax && step >= lastStep, "Difficulty envelope decreased.");
+                Require(min >= course.HardMinimumGap && min <= max && max <= course.HardMaximumGap &&
+                    step >= 0f && step <= course.AbsoluteHorizontalLimit * 2f, "Difficulty escaped hard caps.");
+                if (score <= course.OpeningLandings)
+                    Require(min == firstMin && max == firstMax && step == firstStep, "Opening is not stable.");
+                if (score > finalScore)
+                    Require(min == lastMin && max == lastMax && step == lastStep, "Late difficulty did not plateau.");
+                lastMin = min;
+                lastMax = max;
+                lastStep = step;
             }
         }
 

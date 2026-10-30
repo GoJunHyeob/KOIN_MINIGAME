@@ -935,7 +935,7 @@ MonoBehaviour:
   playCamera: {fileID: 1528330753}
   endlessCourse: {fileID: 1355171099}
   orbitClearance: 0.38
-  orbitDegreesPerSecond: 150
+  orbitDegreesPerSecond: 100
   launchSpeed: 15
   gravityStrength: 60
   softening: 0.8
@@ -987,6 +987,14 @@ MonoBehaviour:
   horizontalLimit: 1.6
   separationMargin: 0.15
   candidateAttempts: 10
+  progressiveDifficulty: 1
+  easyLandings: 4
+  fullDifficultyScore: 30
+  earlyMinVerticalGap: 3.15
+  earlyMaxVerticalGap: 3.3
+  lateMinVerticalGap: 3.4
+  earlyHorizontalStep: 0.45
+  lateHorizontalStep: 2.8
   cameraLookAhead: 3.2
   cameraSharpness: 12
   retireMargin: 1
