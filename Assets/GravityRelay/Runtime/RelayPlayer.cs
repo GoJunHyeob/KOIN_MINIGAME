@@ -9,6 +9,7 @@ namespace GravityRelay
     {
         [SerializeField] private RelayPlanet[] planets;
         [SerializeField] private Camera playCamera;
+        [SerializeField] private RelayEndlessCourse endlessCourse;
         [Header("Balance: orbit and launch")]
         [SerializeField, Min(0.05f), Tooltip("행성 표면과 캐릭터 중심 사이 여유. 가이드 링도 함께 변경됩니다.")]
         private float orbitClearance = 0.38f;
@@ -37,10 +38,13 @@ namespace GravityRelay
         private float stateTime;
         private float orbitDirection = 1f;
         private bool launchQueued;
+        private Rect flightBounds;
         public RelayState State { get; private set; }
         public int Score { get; private set; }
         public int CurrentIndex { get; private set; }
-        public int TargetIndex => (CurrentIndex + 1) % planets.Length;
+        public int TargetIndex => endlessCourse != null ? Score + 1 : (CurrentIndex + 1) % planets.Length;
+        public bool CanLaunch => State == RelayState.Orbiting && (endlessCourse == null || endlessCourse.ReadyForLaunch);
+        public RelayEndlessCourse EndlessCourse => endlessCourse;
         public float FlightRemaining => Mathf.Max(0f, flightTimeLimit - stateTime);
         public string FailureReason { get; private set; }
         public Vector2 Velocity => velocity;
@@ -54,8 +58,10 @@ namespace GravityRelay
         }
         public float OrbitRadius(RelayPlanet planet) => planet.Radius + orbitClearance;
         public float CaptureRadius(RelayPlanet planet) => OrbitRadius(planet) + captureMargin;
-        public RelayPlanet CurrentPlanet => planets[CurrentIndex];
-        public RelayPlanet TargetPlanet => planets[TargetIndex];
+        public RelayPlanet CurrentPlanet => endlessCourse != null ? endlessCourse.CurrentPlanet : planets[CurrentIndex];
+        public RelayPlanet TargetPlanet => endlessCourse != null ? endlessCourse.TargetPlanet : planets[TargetIndex];
+
+        public void SetEndlessCourse(RelayEndlessCourse course) => endlessCourse = course;
 
         public void Configure(RelayPlanet[] route, Camera camera)
         {
@@ -86,13 +92,18 @@ namespace GravityRelay
             launchQueued = false;
             FailureReason = string.Empty;
             State = RelayState.Orbiting;
+            if (endlessCourse != null && !endlessCourse.ResetCourse())
+            {
+                Die("NO REACHABLE ROUTE");
+                return;
+            }
             position = OrbitPosition(CurrentPlanet, angle);
             ApplyPose();
         }
 
         public void RequestLaunch()
         {
-            if (State == RelayState.Orbiting)
+            if (CanLaunch)
                 launchQueued = true;
         }
 
@@ -104,6 +115,8 @@ namespace GravityRelay
             if (State == RelayState.Dead || deltaTime <= 0f)
                 return;
 
+            if (endlessCourse != null)
+                endlessCourse.Tick(deltaTime);
             stateTime += deltaTime;
             switch (State)
             {
@@ -113,6 +126,7 @@ namespace GravityRelay
                         launchQueued = false;
                         Vector2 radial = (position - CurrentPlanet.Center).normalized;
                         velocity = new Vector2(-radial.y, radial.x) * (launchSpeed * orbitDirection);
+                        flightBounds = CameraBounds();
                         State = RelayState.Flying;
                         stateTime = 0f;
                     }
@@ -123,29 +137,16 @@ namespace GravityRelay
                     }
                     break;
                 case RelayState.Flying:
-                    Vector2 offset = TargetPlanet.Center - position;
-                    float acceleration = Mathf.Min(maxAcceleration,
-                        gravityStrength / (offset.sqrMagnitude + softening * softening));
-                    velocity += offset.normalized * (acceleration * deltaTime);
-                    Vector2 next = position + velocity * deltaTime;
-                    float captureRadius = CaptureRadius(TargetPlanet);
-                    // Swept segment check prevents tunnelling at high speed or low tick rates.
-                    Vector2 step = next - position;
-                    float t = step.sqrMagnitude > 0f
-                        ? Mathf.Clamp01(Vector2.Dot(TargetPlanet.Center - position, step) / step.sqrMagnitude)
-                        : 0f;
-                    Vector2 closest = position + step * t;
-                    if ((closest - TargetPlanet.Center).sqrMagnitude <= captureRadius * captureRadius)
+                    if (StepFlight(ref position, ref velocity, TargetPlanet.Center,
+                        CaptureRadius(TargetPlanet), deltaTime))
                     {
-                        position = closest;
                         BeginCapture();
                     }
                     else
                     {
-                        position = next;
                         if (stateTime >= flightTimeLimit)
                             Die("FLIGHT TIME EXPIRED");
-                        else if (OutsidePlayArea())
+                        else if (OutsideBounds(position, flightBounds))
                             Die("OUT OF ORBIT");
                     }
                     break;
@@ -160,6 +161,8 @@ namespace GravityRelay
                         Score++;
                         State = RelayState.Orbiting;
                         stateTime = 0f;
+                        if (endlessCourse != null && !endlessCourse.Advance())
+                            Die("NO REACHABLE ROUTE");
                     }
                     break;
             }
@@ -183,12 +186,78 @@ namespace GravityRelay
             planet.Center + new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) *
             OrbitRadius(planet);
 
-        private bool OutsidePlayArea()
+        // Runtime flight and procedural reachability use this same integrator and swept capture check.
+        private bool StepFlight(ref Vector2 point, ref Vector2 speed, Vector2 center, float radius, float dt)
+        {
+            Vector2 offset = center - point;
+            float acceleration = Mathf.Min(maxAcceleration,
+                gravityStrength / (offset.sqrMagnitude + softening * softening));
+            speed += offset.normalized * (acceleration * dt);
+            Vector2 step = speed * dt;
+            float t = step.sqrMagnitude > 0f
+                ? Mathf.Clamp01(Vector2.Dot(center - point, step) / step.sqrMagnitude) : 0f;
+            Vector2 closest = point + step * t;
+            bool captured = (closest - center).sqrMagnitude <= radius * radius;
+            point = captured ? closest : point + step;
+            return captured;
+        }
+
+        public bool TryFindLaunchWait(RelayPlanet source, Vector2 targetCenter, float targetRadius,
+            Rect bounds, out int waitTicks)
+        {
+            float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
+            float angularStep = orbitDegreesPerSecond * Mathf.Deg2Rad * dt * orbitDirection;
+            int period = Mathf.CeilToInt(360f / (orbitDegreesPerSecond * dt));
+            int stride = Mathf.Max(1, Mathf.CeilToInt(period / 180f));
+            int samples = Mathf.CeilToInt((float)period / stride) + 3;
+            int consecutive = 0;
+            int runStart = 0;
+            for (int sample = 0; sample < samples; sample++)
+            {
+                int ticks = sample * stride;
+                float launchAngle = angle + ticks * angularStep;
+                Vector2 radial = new Vector2(Mathf.Cos(launchAngle), Mathf.Sin(launchAngle));
+                Vector2 point = source.Center + radial * OrbitRadius(source);
+                Vector2 speed = new Vector2(-radial.y, radial.x) * (launchSpeed * orbitDirection);
+                bool captured = false;
+                for (int step = 0; step < Mathf.CeilToInt(flightTimeLimit / dt); step++)
+                {
+                    if (StepFlight(ref point, ref speed, targetCenter,
+                        targetRadius + orbitClearance + captureMargin, dt))
+                    {
+                        captured = true;
+                        break;
+                    }
+                    if (OutsideBounds(point, bounds))
+                        break;
+                }
+                if (captured)
+                {
+                    if (consecutive == 0) runStart = ticks;
+                    consecutive++;
+                    // Reject single-frame lucky shots; require a small usable launch window.
+                    if (consecutive >= 3)
+                    {
+                        waitTicks = runStart;
+                        return true;
+                    }
+                }
+                else
+                    consecutive = 0;
+            }
+            waitTicks = 0;
+            return false;
+        }
+
+        private bool OutsideBounds(Vector2 point, Rect bounds) =>
+            point.x < bounds.xMin - screenExitMargin || point.x > bounds.xMax + screenExitMargin ||
+            point.y < bounds.yMin - screenExitMargin || point.y > bounds.yMax + screenExitMargin;
+
+        private Rect CameraBounds()
         {
             Vector3 lower = playCamera.ViewportToWorldPoint(new Vector3(0f, 0f, 10f));
             Vector3 upper = playCamera.ViewportToWorldPoint(new Vector3(1f, 1f, 10f));
-            return position.x < lower.x - screenExitMargin || position.x > upper.x + screenExitMargin ||
-                   position.y < lower.y - screenExitMargin || position.y > upper.y + screenExitMargin;
+            return Rect.MinMaxRect(lower.x, lower.y, upper.x, upper.y);
         }
 
         private void Die(string reason)

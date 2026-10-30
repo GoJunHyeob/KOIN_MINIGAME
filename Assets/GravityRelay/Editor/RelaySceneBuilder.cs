@@ -91,6 +91,7 @@ namespace GravityRelay.Editor
             hud.GetComponent<RelayPresentation>().Configure(player, camera, marker, body,
                 AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/Settings/InputSystem_Actions.inputactions"));
             RelaySceneSetup.WireVisualsInCurrentScene();
+            RelayEndlessSetup.EnableInCurrentScene();
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
             // Keep the project's existing startup/build settings intact.
@@ -148,6 +149,11 @@ namespace GravityRelay.Editor
             RelayPlayer player = UnityEngine.Object.FindFirstObjectByType<RelayPlayer>();
             if (player == null)
                 throw new InvalidOperationException("Open GravityRelay scene first.");
+            if (player.EndlessCourse != null)
+            {
+                RelayEndlessValidation.RunSmokeTests();
+                return;
+            }
             Vector3 originalPosition = player.transform.position;
             var waits = new List<int>();
             bool sawCapture = false;

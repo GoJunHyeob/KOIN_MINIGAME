@@ -1,0 +1,122 @@
+using System;
+using UnityEditor;
+using UnityEngine;
+
+namespace GravityRelay.Editor
+{
+    public static class RelayEndlessValidation
+    {
+        [MenuItem("Gravity Relay/Validate Endless Progression")]
+        public static void RunSmokeTests()
+        {
+            if (Application.isPlaying)
+                throw new InvalidOperationException("Run outside Play Mode.");
+            RelayPlayer source = UnityEngine.Object.FindFirstObjectByType<RelayPlayer>();
+            if (source == null || source.EndlessCourse == null)
+                throw new InvalidOperationException("Open the configured endless scene first.");
+            var root = new GameObject("Temporary endless validation") { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                var sourceSettings = new SerializedObject(source);
+                var cameraObject = new GameObject("Validation camera", typeof(Camera));
+                cameraObject.transform.SetParent(root.transform);
+                cameraObject.transform.position = new Vector3(0, 0, -10);
+                Camera camera = cameraObject.GetComponent<Camera>();
+                camera.orthographic = true;
+                camera.orthographicSize = ((Camera)sourceSettings.FindProperty("playCamera").objectReferenceValue).orthographicSize;
+                camera.aspect = 9f / 16f;
+                camera.enabled = false;
+                SerializedProperty route = sourceSettings.FindProperty("planets");
+                var templates = new RelayPlanet[route.arraySize];
+                for (int i = 0; i < templates.Length; i++)
+                    templates[i] = UnityEngine.Object.Instantiate((RelayPlanet)route.GetArrayElementAtIndex(i).objectReferenceValue,
+                        root.transform);
+                RelayPlayer player = UnityEngine.Object.Instantiate(source, root.transform);
+                RelayEndlessCourse course = UnityEngine.Object.Instantiate(source.EndlessCourse, root.transform);
+                player.Configure(templates, camera);
+                player.SetEndlessCourse(course);
+                course.Configure(player, camera, templates);
+                player.Restart();
+                Require(player.CanLaunch, "First route must be ready.");
+                Vector3 initialCamera = camera.transform.position;
+                Vector2 initialTarget = player.TargetPlanet.Center;
+                int initialPoolCount = course.PoolCount;
+                float dt = Time.fixedDeltaTime;
+                int maxActive = 0;
+                for (int leg = 0; leg < 100; leg++)
+                {
+                    int guard = 0;
+                    while (!player.CanLaunch && player.State != RelayState.Dead && guard++ < 300)
+                        player.Simulate(dt);
+                    Require(player.CanLaunch, "Camera never settled on leg " + leg);
+                    Require(player.TargetPlanet.Center.y > player.CurrentPlanet.Center.y, "Target must be above player.");
+                    Require(player.TryFindLaunchWait(player.CurrentPlanet, player.TargetPlanet.Center,
+                        player.TargetPlanet.Radius, course.FramedBounds, out int wait), "Unreachable target on leg " + leg);
+                    for (int tick = 0; tick < wait; tick++) player.Simulate(dt);
+                    int previousScore = player.Score;
+                    float targetHeight = player.TargetPlanet.Center.y;
+                    player.RequestLaunch();
+                    player.Simulate(dt);
+                    Require(player.State == RelayState.Flying, "Launch rejected after framing.");
+                    Vector3 lockedCamera = camera.transform.position;
+                    guard = 0;
+                    while (player.State != RelayState.Orbiting && player.State != RelayState.Dead && guard++ < 500)
+                    {
+                        player.RequestLaunch(); // Flight/capture presses must not queue another launch.
+                        player.Simulate(dt);
+                        Require(camera.transform.position == lockedCamera, "Camera moved during flight/capture.");
+                    }
+                    Require(player.State == RelayState.Orbiting && player.Score == previousScore + 1,
+                        "Landing failed on leg " + leg + ": " + player.FailureReason);
+                    Require(Mathf.Abs(player.CurrentPlanet.Center.y - targetHeight) < 0.001f, "Landed on wrong planet.");
+                    Require(player.TargetIndex == player.Score + 1, "Target label wrapped instead of increasing.");
+                    maxActive = Mathf.Max(maxActive, course.ActiveCount);
+                    Require(course.PoolCount == initialPoolCount && course.ActiveCount <= initialPoolCount,
+                        "Pool grew beyond its budget.");
+                    var active = course.ActivePlanets;
+                    for (int a = 0; a < active.Count; a++)
+                    for (int b = a + 1; b < active.Count; b++)
+                        Require(Vector2.Distance(active[a].Center, active[b].Center) > active[a].Radius + active[b].Radius,
+                            "Visible planets overlap.");
+                }
+                Require(player.Score == 100 && camera.transform.position.y > initialCamera.y + 200f,
+                    "Course did not continue upward.");
+                player.Restart();
+                Require(player.Score == 0 && player.CanLaunch && course.ActiveCount == 2 && course.PoolCount == initialPoolCount,
+                    "Restart failed to reset/reuse the pool.");
+                Require(camera.transform.position == initialCamera && player.TargetPlanet.Center == initialTarget,
+                    "Restart failed to restore camera and deterministic first target.");
+                player.RequestLaunch();
+                player.Restart();
+                player.Simulate(dt);
+                Require(player.State == RelayState.Orbiting, "Restart retained a pending launch.");
+                player.RequestLaunch();
+                player.Simulate(dt);
+                for (int tick = 0; tick < 500 && player.State != RelayState.Dead && player.Score == 0; tick++)
+                    player.Simulate(dt);
+                Require(player.State == RelayState.Dead && player.FailureReason == "OUT OF ORBIT",
+                    "A missed shot must still fail at the frozen screen boundary.");
+                player.Restart();
+                var settings = new SerializedObject(player);
+                settings.FindProperty("flightTimeLimit").floatValue = 0.01f;
+                settings.ApplyModifiedPropertiesWithoutUndo();
+                player.RequestLaunch();
+                player.Simulate(dt);
+                player.Simulate(dt);
+                Require(player.State == RelayState.Dead && player.FailureReason == "FLIGHT TIME EXPIRED",
+                    "Flight timeout failed.");
+                Debug.Log("RELAY_ENDLESS_PASSED: 100 landings, upward targets, frozen flight camera, no overlaps, " +
+                    "pool=" + initialPoolCount + ", peak active=" + maxActive + ", restart, screen exit and timeout.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException(message);
+        }
+    }
+}

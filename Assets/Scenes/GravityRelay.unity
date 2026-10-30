@@ -933,6 +933,7 @@ MonoBehaviour:
   - {fileID: 1587442301}
   - {fileID: 2072075189}
   playCamera: {fileID: 1528330753}
+  endlessCourse: {fileID: 1355171099}
   orbitClearance: 0.38
   orbitDegreesPerSecond: 150
   launchSpeed: 15
@@ -943,6 +944,67 @@ MonoBehaviour:
   captureDuration: 0.06
   flightTimeLimit: 4
   screenExitMargin: 0.25
+--- !u!1 &1355171098
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1355171100}
+  - component: {fileID: 1355171099}
+  m_Layer: 0
+  m_Name: Endless Course
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1355171099
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1355171098}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c50dd50467396d447a6d7b07db5f1082, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayEndlessCourse
+  player: {fileID: 1246886891}
+  playCamera: {fileID: 1528330753}
+  planetTemplates:
+  - {fileID: 2023164396}
+  - {fileID: 1587442301}
+  - {fileID: 2072075189}
+  seed: 2718
+  startPosition: {x: -1, y: -3.2}
+  poolSize: 8
+  minVerticalGap: 3.1
+  maxVerticalGap: 3.7
+  horizontalLimit: 1.6
+  separationMargin: 0.15
+  candidateAttempts: 10
+  cameraLookAhead: 3.2
+  cameraSharpness: 12
+  retireMargin: 1
+--- !u!4 &1355171100
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1355171098}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1429709981
 GameObject:
   m_ObjectHideFlags: 0
@@ -1750,3 +1812,4 @@ SceneRoots:
   - {fileID: 1766713374}
   - {fileID: 1246886890}
   - {fileID: 1843534438}
+  - {fileID: 1355171100}

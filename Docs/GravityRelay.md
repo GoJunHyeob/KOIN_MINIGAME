@@ -4,12 +4,15 @@
 
 Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 뷰는 9:16 권장. 카메라가 다른 화면 비율에도 세로 플레이 영역을 유지한다.
 
-클릭/터치/Space(또는 기존 Attack 게임패드 바인딩)로 접선 발사. 하늘색 화살표는 현재 접선 발사 방향이다(중력 곡선이나 성공 예측은 아님). 비행/포획 중 추가 발사는 무시. 사망 후 같은 입력으로 즉시 재시작, R은 어느 상태에서든 재시작한다. 포획 완료마다 1점과 녹색 확산 링, 캐릭터 강조, LANDED! +1 문구를 표시한다. 실패 시 붉은 화면 플래시와 사유를 표시한다. 금색 링은 다음 목표의 실제 포획 반경이며 1→2→3→1로 반복한다. HUD의 BCSD 표기는 원본 미제공으로 임시 캐릭터임을 구분한다.
+클릭/터치/Space(또는 기존 Attack 게임패드 바인딩)로 접선 발사. 하늘색 화살표는 현재 접선 발사 방향이다(중력 곡선이나 성공 예측은 아님). 비행/포획 중 추가 발사는 무시. 사망 후 같은 입력으로 즉시 재시작, R은 어느 상태에서든 재시작한다. 포획 완료마다 1점과 녹색 확산 링, 캐릭터 강조, LANDED! +1 문구를 표시한다. 실패 시 붉은 화면 플래시와 사유를 표시한다. 금색 링은 다음 목표의 실제 포획 반경이며 목표 번호는 2→3→4…로 계속 증가한다. 착륙 후 카메라가 다음 구간을 비추는 동안에는 발사를 대기한다. HUD의 BCSD 표기는 원본 미제공으로 임시 캐릭터임을 구분한다.
+
+현재 씬은 위로 계속 진행하는 무한 코스다. 생성·카메라·행성 회수·재시작과 Inspector 항목은 [GravityRelayEndless.md](GravityRelayEndless.md)에 정리했다.
 
 ## 씬 오브젝트
 
 - Main Camera: 직교 크기 8, 9:16 영역, 중앙 (0,0,-10).
-- Planets: RelayPlanet 3개, 중심 (-1,-3.2), (1,0), (-0.75,3.2), 반경 0.8. 각 Surface / Orbit guide / Crater.
+- Planets: 원래 RelayPlanet 3개를 템플릿으로 보존. Play 시 총 8개 풀을 구성해 위쪽 목표로 재배치/재사용. 반경 0.8, 각 Surface / Orbit guide / Crater.
+- Endless Course: RelayEndlessCourse. 생성 범위, 재현 시드, 카메라, 회수 여유를 설정. BCSD Player의 Endless Course 참조로 연결.
 - Next target halo: 다음 행성 표시.
 - BCSD Player: RelayPlayer, 임시 SpriteRenderer와 눈 장식. Rigidbody2D/Collider 불필요.
 - Relay Input and HUD: RelayPresentation. 카메라/플레이어/마커/기존 InputActionAsset 참조가 저장되어 있다. Bcsd Sprite에 실제 이미지를 넣으면 임시 눈 장식이 숨겨진다. 교체 이미지의 PPU 또는 자식 스케일로 크기를 맞춘다.
@@ -55,14 +58,14 @@ FixedUpdate에서 직접 위치/속도를 적분한다. 포획은 이동 선분�
 
 1. 입력하지 않고 원형 공전이 유지되는지 확인.
 2. 금색 링 방향으로 접선이 향할 때 클릭. 직후 추가 클릭은 비행을 바꾸지 않아야 한다.
-3. 목표 접근 시 Capturing → Orbiting, 점수 +1, 다음 목표 변경 확인. 세 행성을 두 바퀴 이상 반복.
+3. 목표 접근 시 Capturing → Orbiting, 점수 +1, 위쪽 다음 목표 생성 확인. 3번째 이후에도 계속 위로 진행하는지 확인.
 4. 반대 방향 발사로 화면 이탈, 또는 비행 시간 초과를 유도해 Dead 확인. 탭/R로 즉시 초기화.
 5. 비행/포획 도중 R 재시작 후 다음 입력 한 번에 발사하는지 확인.
 6. 9:16 및 가로 Game 뷰에서 모든 행성/점수/안내 표시 확인. 실제 터치는 기기 빌드에서 별도 확인.
 7. 편집 모드/Play 모드 각각에서 Radius와 Orbit Clearance를 바꾸고 그림·가이드가 반영되는지 확인. Play 중 Capture Margin 변경 시 금색 포획 링 반영 확인.
 8. 발사 직전 하늘색 화살표 방향과 실제 초기 비행 방향 비교. 착륙 시 녹색 링/+1, 실패 시 붉은 플래시·사유 확인. R 이후 색/링/안내가 초기화되는지 확인.
 
-`Gravity Relay > Validate Movement (outside Play Mode)`는 실제 Simulate 경로로 6번 착륙, 점수, Capturing 진입, 시간 초과, 화면 이탈, 재시작을 검증한다. 현재 GravityRelay 씬을 열고 Play 밖에서 실행한다. `Create Prototype Scene`은 씬이 이미 있으면 덮어쓰지 않는다.
+`Gravity Relay > Validate Endless Progression`은 실제 Simulate 경로의 임시 복제본에서 100회 착륙, 위쪽 목표, 카메라 고정, 풀 유지, 점수, 시간 초과, 화면 이탈, 재시작을 검증한다. 현재 GravityRelay 씬을 열고 Play 밖에서 실행한다. 기존 Validate Movement 메뉴도 무한 코스가 연결돼 있으면 이 검사로 연결된다. `Create Prototype Scene`은 씬이 이미 있으면 덮어쓰지 않는다.
 
 ## 파일
 
@@ -81,7 +84,7 @@ Editor/RelayPlayValidation.cs: 명시적으로 실행하는 배치 Play 입력 �
 - 로그: `C:/Users/Go/Documents/ChatGPT/GameJam2027/unity-validation.log`, `C:/Users/Go/Documents/ChatGPT/GameJam2027/unity-play-validation-2.log`.
 - 자동 검사는 그래픽 없는 배치 환경에서 실행했다. 실제 화면 외관, 물리 터치 기기, 모바일 플레이어 빌드와 화면 방향은 미검증이다. 아래 수동 확인 절차로 확인한다.
 
-기존 기획 대화의 상세 본문은 참조 텍스트만 반환되어 복원되지 않았다. 현재 요청에 명시된 물리 범위를 기준으로 초기값을 설정했다. 원본 BCSD 이미지, 무한 행성 생성, 모바일 배포/방향 설정, 사운드는 포함하지 않는다. 기존 Build Settings는 SampleScene을 유지하므로 플레이어 빌드 시 GravityRelay를 직접 선택해야 한다.
+기존 기획 대화의 상세 본문은 참조 텍스트만 반환되어 복원되지 않았다. 현재 요청에 명시된 물리 범위를 기준으로 초기값을 설정했다. 원본 BCSD 이미지, 모바일 배포/방향 설정, 사운드는 포함하지 않는다. 기존 Build Settings는 SampleScene을 유지하므로 플레이어 빌드 시 GravityRelay를 직접 선택해야 한다.
 
 ## 밸런스·피드백 작업 확인
 

@@ -202,7 +202,7 @@ namespace GravityRelay
                 mascot.transform.localScale = mascotBaseScale * (1f + 0.25f * impulse);
             }
 
-            launchArrow.enabled = player.State == RelayState.Orbiting;
+            launchArrow.enabled = player.CanLaunch;
             if (launchArrow.enabled)
             {
                 Vector2 direction = player.LaunchDirection;
@@ -258,7 +258,8 @@ namespace GravityRelay
                 }
             }
             else
-                statusText = player.State == RelayState.Capturing ? "CAPTURE!" : "TAP / CLICK / SPACE TO LAUNCH";
+                statusText = player.State == RelayState.Capturing ? "CAPTURE!"
+                    : !player.CanLaunch ? "FRAMING NEXT ORBIT..." : "TAP / CLICK / SPACE TO LAUNCH";
             previousState = player.State;
             feedbackScore = player.Score;
         }
