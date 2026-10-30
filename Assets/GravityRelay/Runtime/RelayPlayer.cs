@@ -9,16 +9,31 @@ namespace GravityRelay
     {
         [SerializeField] private RelayPlanet[] planets;
         [SerializeField] private Camera playCamera;
-        [SerializeField, Min(0.05f)] private float orbitClearance = 0.38f;
-        [SerializeField, Min(1f)] private float orbitDegreesPerSecond = 110f;
-        [SerializeField, Range(5f, 7f)] private float launchSpeed = 6f;
-        [SerializeField, Min(0f)] private float gravityStrength = 18f;
+        [SerializeField] private RelayEndlessCourse endlessCourse;
+        [Header("Balance: orbit and launch")]
+        [SerializeField, Min(0.05f), Tooltip("행성 표면과 캐릭터 중심 사이 여유. 가이드 링도 함께 변경됩니다.")]
+        private float orbitClearance = 1.215f;
+        [SerializeField, Min(1f), Tooltip("공전 각속도. 높을수록 발사 타이밍을 맞추기 어렵습니다.")]
+        private float orbitDegreesPerSecond = 150f;
+        [SerializeField, Range(10f, 20f), Tooltip("접선 방향 발사 속도 (units/s). 중력과 별도로 조정합니다.")]
+        private float launchSpeed = 15f;
+        [Header("Balance: gravity")]
+        [SerializeField, Min(0f), Tooltip("목표 중력 세기. 높이면 궤적이 더 강하게 휘어집니다.")]
+        private float gravityStrength = 60f;
         [SerializeField, Min(0.01f)] private float softening = 0.8f;
-        [SerializeField, Min(0.1f)] private float maxAcceleration = 12f;
-        [SerializeField, Min(0f)] private float captureMargin = 0.22f;
-        [SerializeField, Min(0.01f)] private float captureDuration = 0.15f;
+        [SerializeField, Min(0.1f)] private float maxAcceleration = 40f;
+        [Header("Balance: landing and failure")]
+        [SerializeField, Min(0f), Tooltip("공전 반경 바깥의 추가 포획 여유. 보라색 링이 실제 포획 반경입니다.")]
+        private float captureMargin = 0.3f;
+        [SerializeField, Min(0.01f), Tooltip("착륙 위치 보정 시간. 짧을수록 탁 잡히고, 길수록 부드럽게 붙습니다.")]
+        private float captureDuration = 0.06f;
         [SerializeField, Min(0.1f)] private float flightTimeLimit = 4f;
         [SerializeField, Min(0f)] private float screenExitMargin = 0.25f;
+
+        [Header("Relay input")]
+        [SerializeField, Range(0f, 0.6f), Tooltip("착륙 보정·카메라 이동 중 누른 발사를 잠시 보관합니다. 길게 누르기로 자동 반복하지 않습니다.")]
+        private float launchBufferSeconds = 0.35f;
+        private float launchBufferRemaining;
 
         private Vector2 position;
         private Vector2 velocity;
@@ -28,15 +43,47 @@ namespace GravityRelay
         private float stateTime;
         private float orbitDirection = 1f;
         private bool launchQueued;
+        private bool gameplayActive;
+        private Rect flightBounds;
         public RelayState State { get; private set; }
         public int Score { get; private set; }
+        public int Combo { get; private set; }
+        public int PeakCombo { get; private set; }
+        public event System.Action<Vector2, int> Launched;
+        public event System.Action<Vector2, int> Landed;
+        public event System.Action<Vector2> Died;
         public int CurrentIndex { get; private set; }
-        public int TargetIndex => (CurrentIndex + 1) % planets.Length;
+        public int TargetIndex => endlessCourse != null ? Score + 1 : (CurrentIndex + 1) % planets.Length;
+        public bool CanLaunch => gameplayActive && State == RelayState.Orbiting &&
+            (endlessCourse == null || endlessCourse.ReadyForLaunch);
+        public RelayEndlessCourse EndlessCourse => endlessCourse;
         public float FlightRemaining => Mathf.Max(0f, flightTimeLimit - stateTime);
         public string FailureReason { get; private set; }
         public Vector2 Velocity => velocity;
-        public RelayPlanet CurrentPlanet => planets[CurrentIndex];
-        public RelayPlanet TargetPlanet => planets[TargetIndex];
+        public Vector2 LaunchDirection
+        {
+            get
+            {
+                Vector2 radial = ((Vector2)transform.position - CurrentPlanet.Center).normalized;
+                return new Vector2(-radial.y, radial.x) * orbitDirection;
+            }
+        }
+        public float OrbitRadius(RelayPlanet planet) => planet.Radius + orbitClearance;
+        public float CaptureRadius(RelayPlanet planet) => OrbitRadius(planet) + captureMargin + planet.CaptureAssist;
+        public RelayPlanet CurrentPlanet => endlessCourse != null ? endlessCourse.CurrentPlanet : planets[CurrentIndex];
+        public RelayPlanet TargetPlanet => endlessCourse != null ? endlessCourse.TargetPlanet : planets[TargetIndex];
+
+        public void SetEndlessCourse(RelayEndlessCourse course) => endlessCourse = course;
+
+        public void SetGameplayActive(bool active)
+        {
+            gameplayActive = active && State != RelayState.Dead;
+            if (!gameplayActive)
+            {
+                launchQueued = false;
+                launchBufferRemaining = 0f;
+            }
+        }
 
         public void Configure(RelayPlanet[] route, Camera camera)
         {
@@ -59,43 +106,62 @@ namespace GravityRelay
         public void Restart()
         {
             Score = 0;
+            Combo = 0;
+            PeakCombo = 0;
             CurrentIndex = 0;
             angle = -90f * Mathf.Deg2Rad;
             orbitDirection = 1f;
             velocity = Vector2.zero;
             stateTime = 0f;
             launchQueued = false;
+            launchBufferRemaining = 0f;
             FailureReason = string.Empty;
             State = RelayState.Orbiting;
+            if (endlessCourse != null && !endlessCourse.ResetCourse())
+            {
+                Die("NO REACHABLE ROUTE");
+                return;
+            }
             position = OrbitPosition(CurrentPlanet, angle);
             ApplyPose();
         }
 
         public void RequestLaunch()
         {
-            if (State == RelayState.Orbiting)
-                launchQueued = true;
+            if (!gameplayActive || (State != RelayState.Orbiting && State != RelayState.Capturing))
+                return;
+            launchQueued = true;
+            launchBufferRemaining = Mathf.Max(Time.fixedDeltaTime, launchBufferSeconds);
         }
 
         private void FixedUpdate() => Simulate(Time.fixedDeltaTime);
 
-        // Also used by the editor smoke harness to exercise the real movement rules.
-        public void Simulate(float deltaTime)
+        // Fixed-step gameplay simulation shared with procedural route selection.
+        private void Simulate(float deltaTime)
         {
-            if (State == RelayState.Dead || deltaTime <= 0f)
+            if (!gameplayActive || State == RelayState.Dead || deltaTime <= 0f)
                 return;
 
+            if (endlessCourse != null)
+                endlessCourse.Tick(deltaTime);
+            if (launchQueued)
+            {
+                launchBufferRemaining -= deltaTime;
+                if (launchBufferRemaining < 0f) launchQueued = false;
+            }
             stateTime += deltaTime;
             switch (State)
             {
                 case RelayState.Orbiting:
-                    if (launchQueued)
+                    if (launchQueued && CanLaunch)
                     {
                         launchQueued = false;
                         Vector2 radial = (position - CurrentPlanet.Center).normalized;
                         velocity = new Vector2(-radial.y, radial.x) * (launchSpeed * orbitDirection);
+                        flightBounds = CameraBounds();
                         State = RelayState.Flying;
                         stateTime = 0f;
+                        Launched?.Invoke(position, Combo);
                     }
                     else
                     {
@@ -104,29 +170,16 @@ namespace GravityRelay
                     }
                     break;
                 case RelayState.Flying:
-                    Vector2 offset = TargetPlanet.Center - position;
-                    float acceleration = Mathf.Min(maxAcceleration,
-                        gravityStrength / (offset.sqrMagnitude + softening * softening));
-                    velocity += offset.normalized * (acceleration * deltaTime);
-                    Vector2 next = position + velocity * deltaTime;
-                    float captureRadius = TargetPlanet.Radius + orbitClearance + captureMargin;
-                    // Swept segment check prevents tunnelling at high speed or low tick rates.
-                    Vector2 step = next - position;
-                    float t = step.sqrMagnitude > 0f
-                        ? Mathf.Clamp01(Vector2.Dot(TargetPlanet.Center - position, step) / step.sqrMagnitude)
-                        : 0f;
-                    Vector2 closest = position + step * t;
-                    if ((closest - TargetPlanet.Center).sqrMagnitude <= captureRadius * captureRadius)
+                    if (StepFlight(ref position, ref velocity, TargetPlanet.Center,
+                        CaptureRadius(TargetPlanet), deltaTime))
                     {
-                        position = closest;
                         BeginCapture();
                     }
                     else
                     {
-                        position = next;
                         if (stateTime >= flightTimeLimit)
                             Die("FLIGHT TIME EXPIRED");
-                        else if (OutsidePlayArea())
+                        else if (OutsideBounds(position, flightBounds))
                             Die("OUT OF ORBIT");
                     }
                     break;
@@ -139,8 +192,14 @@ namespace GravityRelay
                         CurrentIndex = TargetIndex;
                         angle = captureAngle;
                         Score++;
+                        Combo++;
+                        PeakCombo = Mathf.Max(PeakCombo, Combo);
                         State = RelayState.Orbiting;
                         stateTime = 0f;
+                        if (endlessCourse != null && !endlessCourse.Advance())
+                            Die("NO REACHABLE ROUTE");
+                        else
+                            Landed?.Invoke(position, Combo);
                     }
                     break;
             }
@@ -153,6 +212,8 @@ namespace GravityRelay
             captureAngle = Mathf.Atan2(radial.y, radial.x);
             float cross = radial.x * velocity.y - radial.y * velocity.x;
             orbitDirection = cross >= 0f ? 1f : -1f;
+            if (endlessCourse != null)
+                orbitDirection = endlessCourse.DepartureDirection(TargetPlanet, captureAngle, orbitDirection);
             captureStart = position;
             velocity = Vector2.zero;
             stateTime = 0f;
@@ -160,24 +221,128 @@ namespace GravityRelay
             State = RelayState.Capturing;
         }
 
+        public float FastestDepartureDirection(RelayPlanet source, RelayPlanet target, Rect bounds,
+            float arrivalAngle, float incomingDirection)
+        {
+            bool forward = FindLaunchWindow(source, target.Center, target.Radius, bounds,
+                arrivalAngle, incomingDirection, target.MinimumLaunchWindow, target.CaptureAssist, out int forwardWait);
+            bool reverse = FindLaunchWindow(source, target.Center, target.Radius, bounds,
+                arrivalAngle, -incomingDirection, target.MinimumLaunchWindow, target.CaptureAssist, out int reverseWait);
+            // Preserve incoming momentum when both choices are similarly quick (within 0.08 seconds).
+            return reverse && (!forward || reverseWait + Mathf.CeilToInt(0.08f / Time.fixedDeltaTime) < forwardWait)
+                ? -incomingDirection : incomingDirection;
+        }
+
         private Vector2 OrbitPosition(RelayPlanet planet, float radians) =>
             planet.Center + new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) *
-            (planet.Radius + orbitClearance);
+            OrbitRadius(planet);
 
-        private bool OutsidePlayArea()
+        // Runtime flight and procedural reachability use this same integrator and swept capture check.
+        private bool StepFlight(ref Vector2 point, ref Vector2 speed, Vector2 center, float radius, float dt)
         {
-            Vector3 lower = playCamera.ViewportToWorldPoint(new Vector3(0f, 0f, 10f));
-            Vector3 upper = playCamera.ViewportToWorldPoint(new Vector3(1f, 1f, 10f));
-            return position.x < lower.x - screenExitMargin || position.x > upper.x + screenExitMargin ||
-                   position.y < lower.y - screenExitMargin || position.y > upper.y + screenExitMargin;
+            Vector2 offset = center - point;
+            float acceleration = Mathf.Min(maxAcceleration,
+                gravityStrength / (offset.sqrMagnitude + softening * softening));
+            speed += offset.normalized * (acceleration * dt);
+            Vector2 step = speed * dt;
+            float t = step.sqrMagnitude > 0f
+                ? Mathf.Clamp01(Vector2.Dot(center - point, step) / step.sqrMagnitude) : 0f;
+            Vector2 closest = point + step * t;
+            bool captured = (closest - center).sqrMagnitude <= radius * radius;
+            point = captured ? closest : point + step;
+            return captured;
+        }
+
+        public bool TryFindLaunchWait(RelayPlanet source, Vector2 targetCenter, float targetRadius,
+            Rect bounds, out int waitTicks, float minimumWindowSeconds = 0f, float captureAssist = 0f)
+        {
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, angle, orbitDirection,
+                minimumWindowSeconds, captureAssist, out waitTicks);
+        }
+
+        public bool CanReachFromEitherOrbit(RelayPlanet source, Vector2 targetCenter, float targetRadius, Rect bounds,
+            float minimumWindowSeconds = 0f, float captureAssist = 0f)
+        {
+            // One extra fixed tick protects the window against an unknown future arrival phase.
+            float previewWindow = Mathf.Max(minimumWindowSeconds, Time.fixedDeltaTime * 2f) + Time.fixedDeltaTime;
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, 1f, previewWindow, captureAssist, out _) &&
+                FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, -1f, previewWindow, captureAssist, out _);
+        }
+
+        private bool FindLaunchWindow(RelayPlanet source, Vector2 targetCenter, float targetRadius,
+            Rect bounds, float phase, float direction, float minimumWindowSeconds, float captureAssist, out int waitTicks)
+        {
+            float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
+            float orbitSeconds = 360f / Mathf.Max(0.001f, orbitDegreesPerSecond);
+            int period = Mathf.Clamp(Mathf.CeilToInt(orbitSeconds / dt), 16, 360);
+            float sampleSeconds = orbitSeconds / period;
+            float angularStep = Mathf.PI * 2f / period * direction;
+            // N successful samples span N-1 intervals; do not overstate a window by one tick.
+            int requiredSamples = Mathf.Max(3, Mathf.CeilToInt(minimumWindowSeconds / sampleSeconds) + 1);
+            waitTicks = 0;
+            if (requiredSamples > period + 1)
+                return false;
+            int samples = period + requiredSamples - 1;
+            int flightSteps = Mathf.CeilToInt(flightTimeLimit / dt);
+            int consecutive = 0;
+            int runStart = 0;
+            for (int sample = 0; sample < samples; sample++)
+            {
+                // Wrapping joins a valid interval across 360/0 degrees instead of splitting it.
+                float launchAngle = phase + (sample % period) * angularStep;
+                Vector2 radial = new Vector2(Mathf.Cos(launchAngle), Mathf.Sin(launchAngle));
+                Vector2 point = source.Center + radial * OrbitRadius(source);
+                Vector2 speed = new Vector2(-radial.y, radial.x) * (launchSpeed * direction);
+                bool captured = false;
+                for (int step = 0; step < flightSteps; step++)
+                {
+                    if (StepFlight(ref point, ref speed, targetCenter,
+                        targetRadius + orbitClearance + captureMargin + captureAssist, dt))
+                    {
+                        captured = true;
+                        break;
+                    }
+                    if (OutsideBounds(point, bounds))
+                        break;
+                }
+                if (captured)
+                {
+                    if (consecutive == 0) runStart = sample;
+                    consecutive++;
+                    // This is a generation rule in game seconds, not a standalone test harness.
+                    if (consecutive >= requiredSamples)
+                    {
+                        waitTicks = Mathf.RoundToInt((runStart % period) * sampleSeconds / dt);
+                        return true;
+                    }
+                }
+                else
+                    consecutive = 0;
+            }
+            waitTicks = 0;
+            return false;
+        }
+
+        private bool OutsideBounds(Vector2 point, Rect bounds) =>
+            point.x < bounds.xMin - screenExitMargin || point.x > bounds.xMax + screenExitMargin ||
+            point.y < bounds.yMin - screenExitMargin || point.y > bounds.yMax + screenExitMargin;
+
+        private Rect CameraBounds()
+        {
+            return RelayScreenLayout.WorldBounds(playCamera, playCamera.transform.position);
         }
 
         private void Die(string reason)
         {
+            if (State == RelayState.Dead) return;
+            Combo = 0;
+            gameplayActive = false;
             State = RelayState.Dead;
             FailureReason = reason;
             velocity = Vector2.zero;
             launchQueued = false;
+            launchBufferRemaining = 0f;
+            Died?.Invoke(position);
         }
 
         private void ApplyPose()
