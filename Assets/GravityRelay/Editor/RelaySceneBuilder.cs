@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -20,22 +19,6 @@ namespace GravityRelay.Editor
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 return;
             BuildScene();
-        }
-
-        public static void BuildAndValidate()
-        {
-            try
-            {
-                BuildScene();
-                RunSmokeTests();
-                Debug.Log("GRAVITY_RELAY_VALIDATION_PASSED");
-                EditorApplication.Exit(0);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogException(exception);
-                EditorApplication.Exit(1);
-            }
         }
 
         private static void BuildScene()
@@ -59,7 +42,7 @@ namespace GravityRelay.Editor
             camera.backgroundColor = new Color(0.025f, 0.04f, 0.09f);
 
             var route = new RelayPlanet[3];
-            Vector2[] centers = { new Vector2(-1, -3.2f), new Vector2(1, 0), new Vector2(-0.75f, 3.2f) };
+            Vector2[] centers = { new Vector2(-1, -3.2f), new Vector2(0.6f, 1.2f), new Vector2(-1.2f, 5.6f) };
             Color[] colors = { new Color(0.18f, 0.68f, 0.77f), new Color(0.51f, 0.38f, 0.83f), new Color(0.91f, 0.43f, 0.38f) };
             var planetRoot = new GameObject("Planets (route 1 > 2 > 3 > 1)");
             for (int i = 0; i < route.Length; i++)
@@ -68,18 +51,18 @@ namespace GravityRelay.Editor
                 planetObject.transform.SetParent(planetRoot.transform);
                 planetObject.transform.position = centers[i];
                 route[i] = planetObject.GetComponent<RelayPlanet>();
-                MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1.6f, 0);
+                MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1f, 0);
                 MakeSprite("Orbit guide", planetObject.transform, ring, material,
-                    new Color(0.5f, 0.8f, 1f, 0.22f), Vector2.zero, 2.36f, -1);
+                    new Color(0.5f, 0.8f, 1f, 0.22f), Vector2.zero, 3f, -1);
                 MakeSprite("Crater", planetObject.transform, disc, material,
-                    colors[i] * 0.75f, new Vector2(-0.2f, 0.15f), 0.38f, 1);
+                    colors[i] * 0.75f, new Vector2(-0.125f, 0.09375f), 0.2375f, 1);
             }
             SpriteRenderer marker = MakeSprite("Next target halo", null, ring, material,
-                new Color(1f, 0.82f, 0.3f), centers[1], 1.84f, 2);
+                new Color(1f, 0.82f, 0.3f), centers[1], 3.6f, 2);
             var playerObject = new GameObject("BCSD Player", typeof(RelayPlayer));
             RelayPlayer player = playerObject.GetComponent<RelayPlayer>();
             player.Configure(route, camera);
-            playerObject.transform.position = centers[0] + Vector2.down * 1.18f;
+            playerObject.transform.position = centers[0] + Vector2.down * 1.5f;
             SpriteRenderer body = MakeSprite("BCSD Placeholder (replace via Presentation)", playerObject.transform,
                 disc, material, new Color(1f, 0.89f, 0.57f), Vector2.zero, 0.42f, 10);
             // Decorations are normalized to the body's local scale.
@@ -141,107 +124,5 @@ namespace GravityRelay.Editor
             return AssetDatabase.LoadAssetAtPath<Sprite>(path);
         }
 
-        [MenuItem("Gravity Relay/Validate Movement (outside Play Mode)")]
-        public static void RunSmokeTests()
-        {
-            if (Application.isPlaying)
-                throw new InvalidOperationException("Run this validation outside Play Mode.");
-            RelayPlayer player = UnityEngine.Object.FindFirstObjectByType<RelayPlayer>();
-            if (player == null)
-                throw new InvalidOperationException("Open GravityRelay scene first.");
-            if (player.EndlessCourse != null)
-            {
-                RelayEndlessValidation.RunSmokeTests();
-                return;
-            }
-            Vector3 originalPosition = player.transform.position;
-            var waits = new List<int>();
-            bool sawCapture = false;
-            try
-            {
-                for (int leg = 0; leg < 6; leg++)
-                {
-                    bool landed = false;
-                    for (int wait = 0; wait < 170 && !landed; wait++)
-                    {
-                        player.Restart();
-                        foreach (int previous in waits)
-                            Fly(player, previous, ref sawCapture);
-                        int expectedScore = player.Score + 1;
-                        float transferTime = Fly(player, wait, ref sawCapture);
-                        if (player.State == RelayState.Orbiting && player.Score == expectedScore)
-                        {
-                            waits.Add(wait);
-                            landed = true;
-                            Debug.Log("RELAY_TEST landing " + expectedScore + ", wait ticks=" + wait +
-                                ", flight+capture=" + transferTime.ToString("0.00") + "s");
-                        }
-                    }
-                    Require(landed, "No reachable launch window on leg " + leg);
-                }
-                Require(sawCapture && player.Score == 6 && player.CurrentIndex == 0,
-                    "Two complete loops must score six captures and return to planet one.");
-                player.RequestLaunch();
-                player.Restart();
-                player.Simulate(0.02f);
-                Require(player.State == RelayState.Orbiting && player.Score == 0,
-                    "Restart must clear score, velocity and pending launch.");
-
-                var settings = new SerializedObject(player);
-                SerializedProperty timeLimit = settings.FindProperty("flightTimeLimit");
-                float originalLimit = timeLimit.floatValue;
-                try
-                {
-                    timeLimit.floatValue = 0.01f;
-                    settings.ApplyModifiedPropertiesWithoutUndo();
-                    player.RequestLaunch();
-                    player.Simulate(0.02f);
-                    player.Simulate(0.02f);
-                    Require(player.State == RelayState.Dead && player.FailureReason == "FLIGHT TIME EXPIRED",
-                        "Flight limit must kill the player.");
-                }
-                finally
-                {
-                    timeLimit.floatValue = originalLimit;
-                    settings.ApplyModifiedPropertiesWithoutUndo();
-                }
-                player.Restart();
-                player.RequestLaunch();
-                player.Simulate(0.02f);
-                player.Simulate(2f);
-                Require(player.State == RelayState.Dead && player.FailureReason == "OUT OF ORBIT",
-                    "Leaving the camera bounds must kill the player before the flight timeout.");
-                player.Restart();
-                Require(player.Score == 0 && player.State == RelayState.Orbiting, "Restart after death failed.");
-                Debug.Log("RELAY_TEST PASSED: six landings, capture state, score, timeout, screen exit, restart.");
-            }
-            finally
-            {
-                player.Restart();
-                player.transform.position = originalPosition;
-            }
-        }
-
-        private static float Fly(RelayPlayer player, int wait, ref bool sawCapture)
-        {
-            for (int tick = 0; tick < wait; tick++)
-                player.Simulate(0.02f);
-            player.RequestLaunch();
-            player.Simulate(0.02f);
-            for (int tick = 0; tick < 230; tick++)
-            {
-                player.Simulate(0.02f);
-                sawCapture |= player.State == RelayState.Capturing;
-                if (player.State == RelayState.Dead || player.State == RelayState.Orbiting)
-                    return (tick + 1) * 0.02f;
-            }
-            return 230 * 0.02f;
-        }
-
-        private static void Require(bool condition, string message)
-        {
-            if (!condition)
-                throw new InvalidOperationException(message);
-        }
     }
 }

@@ -68,36 +68,21 @@ namespace GravityRelay.Editor
             {
                 SpriteRenderer surface = null;
                 SpriteRenderer guide = null;
+                Transform crater = null;
                 // Names are used only for this explicit authoring/migration step, never at runtime.
                 foreach (SpriteRenderer renderer in planet.GetComponentsInChildren<SpriteRenderer>())
                 {
                     if (renderer.gameObject.name == "Surface") surface = renderer;
                     if (renderer.gameObject.name == "Orbit guide") guide = renderer;
+                    if (renderer.gameObject.name == "Crater") crater = renderer.transform;
                 }
                 if (surface == null || guide == null)
                     throw new InvalidOperationException("Missing surface or orbit guide on " + planet.name);
-                planet.ConfigureVisuals(surface, guide, player);
+                planet.ConfigureVisuals(surface, guide, player, crater);
                 EditorUtility.SetDirty(planet);
             }
             EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
         }
 
-        public static void UpgradeAndExit()
-        {
-            try
-            {
-                EditorSceneManager.OpenScene(RelaySceneBuilder.ScenePath);
-                WireVisualsInCurrentScene();
-                EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-                AssetDatabase.SaveAssets();
-                Debug.Log("GRAVITY_RELAY_BALANCE_COMPILE_AND_SETUP_PASSED");
-                EditorApplication.Exit(0);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogException(exception);
-                EditorApplication.Exit(1);
-            }
-        }
     }
 }

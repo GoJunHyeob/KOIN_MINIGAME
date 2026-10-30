@@ -25,7 +25,7 @@ namespace GravityRelay.Editor
             course.GetGenerationLimits(score, out float minimum, out float maximum, out float step);
             EditorGUILayout.LabelField(label + " (" + score + "점)");
             EditorGUILayout.LabelField("높이 " + minimum.ToString("0.00") + "~" + maximum.ToString("0.00") +
-                " / 좌우 변화 ≤ " + step.ToString("0.00"), EditorStyles.miniLabel);
+                " / 좌우 변화 " + course.MinimumHorizontalStep(step).ToString("0.00") + "~" + step.ToString("0.00"), EditorStyles.miniLabel);
         }
     }
 }

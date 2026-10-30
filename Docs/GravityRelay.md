@@ -1,5 +1,7 @@
 # Gravity Relay 프로토타입
 
+현재 크기·공전·배치 설정과 자동 검사 코드 제거 내역은 [GravityRelayLayout.md](GravityRelayLayout.md)에 정리했습니다. 이번 변경은 테스트/Play 검사 없이 적용했습니다.
+
 ## 실행
 
 Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 뷰는 9:16 권장. 카메라가 다른 화면 비율에도 세로 플레이 영역을 유지한다.
@@ -11,7 +13,7 @@ Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 
 ## 씬 오브젝트
 
 - Main Camera: 직교 크기 8, 9:16 영역, 중앙 (0,0,-10).
-- Planets: 원래 RelayPlanet 3개를 템플릿으로 보존. Play 시 총 12개 풀을 구성하고 앞쪽 행성 4개를 미리 배치해 재사용. 반경 0.8, 각 Surface / Orbit guide / Crater.
+- Planets: 원래 RelayPlanet 3개를 템플릿으로 보존. Play 시 총 12개 풀을 구성하고 앞쪽 행성 4개를 미리 배치해 재사용. 반경 0.5, 각 Surface / Orbit guide / Crater.
 - Endless Course: RelayEndlessCourse. 생성 범위, 재현 시드, 카메라, 회수 여유를 설정. BCSD Player의 Endless Course 참조로 연결.
 - Next target halo: 다음 행성 표시.
 - BCSD Player: RelayPlayer, 임시 SpriteRenderer와 눈 장식. Rigidbody2D/Collider 불필요.
@@ -23,7 +25,7 @@ Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 
 
 |항목|값|의미|
 |---|---:|---|
-|Orbit Clearance|0.38|공전 반경 = 행성 반경 + 여유|
+|Orbit Clearance|1.0|공전 반경 = 행성 반경 + 여유|
 |Orbit Degrees Per Second|150|공전 각속도 (착륙 시 진행 방향 보존)|
 |Launch Speed|15|units/s, 접선 방향, 조정 범위 10~20|
 |Gravity Strength|60|목표 행성에만 중력 적용|
@@ -65,7 +67,6 @@ FixedUpdate에서 직접 위치/속도를 적분한다. 포획은 이동 선분�
 7. 편집 모드/Play 모드 각각에서 Radius와 Orbit Clearance를 바꾸고 그림·가이드가 반영되는지 확인. Play 중 Capture Margin 변경 시 금색 포획 링 반영 확인.
 8. 발사 직전 하늘색 화살표 방향과 실제 초기 비행 방향 비교. 착륙 시 녹색 링/+1, 실패 시 붉은 플래시·사유 확인. R 이후 색/링/안내가 초기화되는지 확인.
 
-`Gravity Relay > Validate Endless Progression`은 실제 Simulate 경로의 임시 복제본에서 100회 착륙, 위쪽 목표, 카메라 고정, 풀 유지, 점수, 시간 초과, 화면 이탈, 재시작을 검증한다. 현재 GravityRelay 씬을 열고 Play 밖에서 실행한다. 기존 Validate Movement 메뉴도 무한 코스가 연결돼 있으면 이 검사로 연결된다. `Create Prototype Scene`은 씬이 이미 있으면 덮어쓰지 않는다.
 
 ## 파일
 
@@ -73,7 +74,6 @@ Runtime/RelayPlanet.cs: 행성 설정. Runtime/RelayPlayer.cs: 4상태 이동/�
 
 Editor/RelayPlayerEditor.cs: Inspector 프리셋과 기존 씬 표시 참조 연결 도구. 현재 씬은 연결 완료 상태로 저장한다. 이후 기존 씬을 복사하거나 표시 오브젝트를 교체했다면 Gravity Relay > Refresh Balance Visual References를 명시적으로 실행한 뒤 씬을 저장한다. 행성 표시 갱신은 직접 저장된 참조를 사용하며 런타임 이름 검색을 하지 않는다.
 
-Editor/RelayPlayValidation.cs: 명시적으로 실행하는 배치 Play 입력 검증 도구. 평소 프로젝트를 여는 것만으로는 실행되지 않는다. 실행 메서드는 `GravityRelay.Editor.RelayPlayValidation.RunBatch`. 숨겨진 에디터의 포커스 제약을 피하기 위해 검증 세션에서만 InputSettings를 복제하고 모든 장치 입력을 허용한다. 원본 입력 자산/설정은 저장하거나 수정하지 않는다.
 
 ## 검증 결과 (2026-10-30)
 

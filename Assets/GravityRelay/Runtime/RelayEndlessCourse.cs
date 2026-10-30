@@ -15,11 +15,13 @@ namespace GravityRelay
         [SerializeField, Range(4, 6), Tooltip("항상 앞쪽에 미리 배치할 행성 수입니다.")]
         private int planetsAhead = 4;
         [SerializeField, Min(2.8f), Tooltip("전체 생성 높이 차의 하한입니다.")]
-        private float minVerticalGap = 3.1f;
+        private float minVerticalGap = 4.2f;
         [SerializeField, Min(2.8f), Tooltip("난이도가 올라가도 넘지 않는 높이 차 상한입니다.")]
-        private float maxVerticalGap = 3.7f;
-        [SerializeField, Range(0f, 2f), Tooltip("모든 단계에서 유지되는 절대 좌우 생성 범위입니다.")]
-        private float horizontalLimit = 1.6f;
+        private float maxVerticalGap = 5.4f;
+        [SerializeField, Range(0f, 2.5f), Tooltip("모든 단계에서 유지되는 절대 좌우 생성 범위입니다.")]
+        private float horizontalLimit = 2.2f;
+        [SerializeField, Min(0f), Tooltip("수직으로 붙는 배치를 피하기 위한 최소 좌우 이동폭입니다.")]
+        private float minimumHorizontalStep = 1.2f;
         [SerializeField, Min(0f)] private float separationMargin = 0.15f;
         [SerializeField, Range(1, 20)] private int candidateAttempts = 10;
         [Header("Progressive difficulty: placement only")]
@@ -28,13 +30,13 @@ namespace GravityRelay
         private int easyLandings = 4;
         [SerializeField, Min(1), Tooltip("이 점수부터는 생성 난이도를 더 높이지 않습니다.")]
         private int fullDifficultyScore = 30;
-        [SerializeField, Min(2.8f)] private float earlyMinVerticalGap = 3.15f;
-        [SerializeField, Min(2.8f)] private float earlyMaxVerticalGap = 3.3f;
-        [SerializeField, Min(2.8f)] private float lateMinVerticalGap = 3.4f;
+        [SerializeField, Min(2.8f)] private float earlyMinVerticalGap = 4.2f;
+        [SerializeField, Min(2.8f)] private float earlyMaxVerticalGap = 4.6f;
+        [SerializeField, Min(2.8f)] private float lateMinVerticalGap = 4.8f;
         [SerializeField, Min(0f), Tooltip("초반 목표와 현재 행성 사이 x 차이의 최대값입니다.")]
-        private float earlyHorizontalStep = 0.45f;
+        private float earlyHorizontalStep = 2.6f;
         [SerializeField, Min(0f), Tooltip("후반 x 차이의 최대값. 절대 좌우 범위도 함께 적용됩니다.")]
-        private float lateHorizontalStep = 2.8f;
+        private float lateHorizontalStep = 4.2f;
         [Header("Camera and recycling")]
         [SerializeField, Min(0f)] private float cameraLookAhead = 3.2f;
         [SerializeField, Min(1f)] private float cameraSharpness = 12f;
@@ -51,11 +53,6 @@ namespace GravityRelay
         private float generationMaxStep;
         public RelayPlanet CurrentPlanet => current;
         public RelayPlanet TargetPlanet => next != null ? next : current;
-        public int ActiveCount => active.Count;
-        public int PoolCount => pool.Count;
-        public IReadOnlyList<RelayPlanet> ActivePlanets => active;
-        public IReadOnlyList<RelayPlanet> UpcomingPlanets => upcoming;
-        public int AheadCount => upcoming.Count;
         public int ConfiguredAheadCount => Mathf.Clamp(planetsAhead, 4, 6);
         public bool ReadyForLaunch => next != null &&
             (playCamera.transform.position - FramedCameraPosition()).sqrMagnitude <= 0.0004f;
@@ -63,7 +60,8 @@ namespace GravityRelay
         public int OpeningLandings => Mathf.Max(0, easyLandings);
         public int FullDifficultyAtScore => Mathf.Max(OpeningLandings + 1, fullDifficultyScore);
         public int CurrentScore => player != null ? player.Score : 0;
-        public float AbsoluteHorizontalLimit => Mathf.Clamp(horizontalLimit, 0f, 2f);
+        public float AbsoluteHorizontalLimit => Mathf.Clamp(horizontalLimit, 0f, 2.5f);
+        public float MinimumHorizontalStep(float maximumStep) => Mathf.Clamp(minimumHorizontalStep, 0f, maximumStep);
         public float HardMinimumGap => Mathf.Max(2.8f, minVerticalGap);
         public float HardMaximumGap => Mathf.Max(HardMinimumGap, maxVerticalGap);
 
@@ -212,15 +210,19 @@ namespace GravityRelay
             if (available == null)
                 return false;
 
-            // A small predictable first step teaches the tangent shot before wider placements appear.
-            Vector2 firstStep = new Vector2(Mathf.Clamp(source.Center.x + Mathf.Min(0.35f, generationMaxStep),
+            // The opening jump already has a visible lateral offset; later jumps vary across the map.
+            Vector2 firstStep = new Vector2(Mathf.Clamp(source.Center.x + (source.Center.x >= 0f ? -1f : 1f) *
+                Mathf.Clamp(1.6f, MinimumHorizontalStep(generationMaxStep), generationMaxStep),
                 -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit),
                 source.Center.y + (generationMinGap + generationMaxGap) * 0.5f);
             if (futureScore == 0 && Accept(firstStep, available, source))
                 return true;
             for (int attempt = 0; attempt < candidateAttempts; attempt++)
             {
-                float deltaX = Mathf.Lerp(-generationMaxStep, generationMaxStep, (float)random.NextDouble());
+                float inward = source.Center.x >= 0f ? -1f : 1f;
+                float direction = random.NextDouble() < 0.75 ? inward : -inward;
+                float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
+                    generationMaxStep, (float)random.NextDouble());
                 float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
                 float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (float)random.NextDouble());
                 if (Accept(new Vector2(x, source.Center.y + gap), available, source))
@@ -229,7 +231,10 @@ namespace GravityRelay
             // Bounded deterministic fallback, still tested with the real movement model.
             for (int attempt = 0; attempt < 9; attempt++)
             {
-                float deltaX = attempt < 3 ? 0f : attempt < 6 ? -generationMaxStep : generationMaxStep;
+                float inward = source.Center.x >= 0f ? -1f : 1f;
+                float direction = attempt % 3 == 1 ? -inward : inward;
+                float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
+                    generationMaxStep, (attempt / 3) * 0.5f);
                 float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
                 float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (attempt % 3) * 0.5f);
                 if (Accept(new Vector2(x, source.Center.y + gap), available, source))
@@ -244,7 +249,8 @@ namespace GravityRelay
             const float tolerance = 0.0001f;
             if (gap < generationMinGap - tolerance || gap > generationMaxGap + tolerance ||
                 Mathf.Abs(center.x) > AbsoluteHorizontalLimit + tolerance ||
-                Mathf.Abs(center.x - source.Center.x) > generationMaxStep + tolerance)
+                Mathf.Abs(center.x - source.Center.x) > generationMaxStep + tolerance ||
+                Mathf.Abs(center.x - source.Center.x) < MinimumHorizontalStep(generationMaxStep) - tolerance)
                 return false;
             foreach (RelayPlanet planet in active)
             {

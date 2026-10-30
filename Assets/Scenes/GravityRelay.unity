@@ -330,7 +330,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2072075190}
@@ -454,8 +454,8 @@ Transform:
   m_GameObject: {fileID: 479716618}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.2, y: 0.15, z: 0}
-  m_LocalScale: {x: 0.38, y: 0.38, z: 0.38}
+  m_LocalPosition: {x: -0.125, y: 0.09375, z: 0}
+  m_LocalScale: {x: 0.2375, y: 0.2375, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2072075190}
@@ -546,7 +546,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1587442300}
@@ -727,8 +727,8 @@ Transform:
   m_GameObject: {fileID: 1025196005}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.2, y: 0.15, z: 0}
-  m_LocalScale: {x: 0.38, y: 0.38, z: 0.38}
+  m_LocalPosition: {x: -0.125, y: 0.09375, z: 0}
+  m_LocalScale: {x: 0.2375, y: 0.2375, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2023164395}
@@ -819,7 +819,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
+  m_LocalScale: {x: 3, y: 3, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1587442300}
@@ -909,7 +909,7 @@ Transform:
   m_GameObject: {fileID: 1246886889}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1, y: -4.38, z: 0}
+  m_LocalPosition: {x: -1, y: -4.7, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -934,7 +934,7 @@ MonoBehaviour:
   - {fileID: 2072075189}
   playCamera: {fileID: 1528330753}
   endlessCourse: {fileID: 1355171099}
-  orbitClearance: 0.38
+  orbitClearance: 1
   orbitDegreesPerSecond: 150
   launchSpeed: 15
   gravityStrength: 60
@@ -983,19 +983,20 @@ MonoBehaviour:
   startPosition: {x: -1, y: -3.2}
   poolSize: 12
   planetsAhead: 4
-  minVerticalGap: 3.1
-  maxVerticalGap: 3.7
-  horizontalLimit: 1.6
+  minVerticalGap: 4.2
+  maxVerticalGap: 5.4
+  horizontalLimit: 2.2
+  minimumHorizontalStep: 1.2
   separationMargin: 0.15
   candidateAttempts: 10
   progressiveDifficulty: 1
   easyLandings: 4
   fullDifficultyScore: 30
-  earlyMinVerticalGap: 3.15
-  earlyMaxVerticalGap: 3.3
-  lateMinVerticalGap: 3.4
-  earlyHorizontalStep: 0.45
-  lateHorizontalStep: 2.8
+  earlyMinVerticalGap: 4.2
+  earlyMaxVerticalGap: 4.6
+  lateMinVerticalGap: 4.8
+  earlyHorizontalStep: 2.6
+  lateHorizontalStep: 4.2
   cameraLookAhead: 3.2
   cameraSharpness: 12
   retireMargin: 1
@@ -1041,7 +1042,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2023164395}
@@ -1268,7 +1269,7 @@ Transform:
   m_GameObject: {fileID: 1587442299}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1, y: 0, z: 0}
+  m_LocalPosition: {x: 0.6, y: 1.2, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1289,10 +1290,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a42453138542d4d4f97ad9352187cbaf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
-  radius: 0.8
+  radius: 0.5
   surface: {fileID: 800313540}
   orbitGuide: {fileID: 1133730893}
   orbitSource: {fileID: 1246886891}
+  crater: {fileID: 1839319278}
 --- !u!1 &1647458452
 GameObject:
   m_ObjectHideFlags: 0
@@ -1320,7 +1322,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
+  m_LocalScale: {x: 3, y: 3, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2072075190}
@@ -1411,7 +1413,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
+  m_LocalScale: {x: 3, y: 3, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2023164395}
@@ -1560,8 +1562,8 @@ Transform:
   m_GameObject: {fileID: 1766713372}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1, y: 0, z: 0}
-  m_LocalScale: {x: 1.84, y: 1.84, z: 1.84}
+  m_LocalPosition: {x: 0.6, y: 1.2, z: 0}
+  m_LocalScale: {x: 3.6, y: 3.6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -1592,8 +1594,8 @@ Transform:
   m_GameObject: {fileID: 1839319277}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.2, y: 0.15, z: 0}
-  m_LocalScale: {x: 0.38, y: 0.38, z: 0.38}
+  m_LocalPosition: {x: -0.125, y: 0.09375, z: 0}
+  m_LocalScale: {x: 0.2375, y: 0.2375, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1587442300}
@@ -1757,10 +1759,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a42453138542d4d4f97ad9352187cbaf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
-  radius: 0.8
+  radius: 0.5
   surface: {fileID: 1429709983}
   orbitGuide: {fileID: 1689472267}
   orbitSource: {fileID: 1246886891}
+  crater: {fileID: 1025196006}
 --- !u!1 &2072075188
 GameObject:
   m_ObjectHideFlags: 0
@@ -1790,10 +1793,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a42453138542d4d4f97ad9352187cbaf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
-  radius: 0.8
+  radius: 0.5
   surface: {fileID: 180972293}
   orbitGuide: {fileID: 1647458454}
   orbitSource: {fileID: 1246886891}
+  crater: {fileID: 479716619}
 --- !u!4 &2072075190
 Transform:
   m_ObjectHideFlags: 0
@@ -1803,7 +1807,7 @@ Transform:
   m_GameObject: {fileID: 2072075188}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.75, y: 3.2, z: 0}
+  m_LocalPosition: {x: -1.2, y: 5.6, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

@@ -12,7 +12,7 @@ namespace GravityRelay
         [SerializeField] private RelayEndlessCourse endlessCourse;
         [Header("Balance: orbit and launch")]
         [SerializeField, Min(0.05f), Tooltip("행성 표면과 캐릭터 중심 사이 여유. 가이드 링도 함께 변경됩니다.")]
-        private float orbitClearance = 0.38f;
+        private float orbitClearance = 1f;
         [SerializeField, Min(1f), Tooltip("공전 각속도. 높을수록 발사 타이밍을 맞추기 어렵습니다.")]
         private float orbitDegreesPerSecond = 150f;
         [SerializeField, Range(10f, 20f), Tooltip("접선 방향 발사 속도 (units/s). 중력과 별도로 조정합니다.")]
@@ -109,8 +109,8 @@ namespace GravityRelay
 
         private void FixedUpdate() => Simulate(Time.fixedDeltaTime);
 
-        // Also used by the editor smoke harness to exercise the real movement rules.
-        public void Simulate(float deltaTime)
+        // Fixed-step gameplay simulation shared with procedural route selection.
+        private void Simulate(float deltaTime)
         {
             if (State == RelayState.Dead || deltaTime <= 0f)
                 return;
