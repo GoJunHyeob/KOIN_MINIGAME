@@ -64,7 +64,7 @@ namespace GravityRelay.Editor
             player.Configure(route, camera);
             playerObject.transform.position = centers[0] + Vector2.down * 1.8f;
             SpriteRenderer body = MakeSprite("BCSD Placeholder (replace via Presentation)", playerObject.transform,
-                disc, material, new Color(1f, 0.89f, 0.57f), Vector2.zero, 0.42f, 10);
+                disc, material, new Color(1f, 0.89f, 0.57f), Vector2.zero, 0.63f, 10);
             // Decorations are normalized to the body's local scale.
             MakeSprite("Eye L", body.transform, disc, material, new Color(0.05f, 0.09f, 0.16f),
                 new Vector2(-0.16f, 0.1f), 0.14f, 11);

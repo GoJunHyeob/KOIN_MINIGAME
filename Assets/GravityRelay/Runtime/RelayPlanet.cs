@@ -47,6 +47,13 @@ namespace GravityRelay
             }
             if (orbitSource != null)
                 SetDiameter(orbitGuide, orbitSource.OrbitRadius(this) * 2f);
+            if (orbitGuide != null)
+            {
+                // Preserve authoring previews; during play reveal only the occupied orbit.
+                bool visible = !Application.isPlaying || (orbitSource != null &&
+                    orbitSource.State == RelayState.Orbiting && orbitSource.CurrentPlanet == this);
+                if (orbitGuide.enabled != visible) orbitGuide.enabled = visible;
+            }
         }
 
         private static void SetDiameter(SpriteRenderer renderer, float diameter)
