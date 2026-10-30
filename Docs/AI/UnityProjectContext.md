@@ -53,3 +53,5 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 space backdrop: generated purple/navy nebula PNG in Art/Resources/GravityRelaySpace.png. Presentation loads the local Sprite once, RelaySpaceBackground reuses three reflected tiles behind gameplay with 0.12 camera parallax and brightness 0.9; existing failure flash is forwarded. No scene edits; user scene changes stay uncommitted. No tests/Play/compile/visual validation executed.
+
+2026-10-31 background binding: saved Space Background root and three sprite tiles in GravityRelay scene, explicit artwork/camera/Presentation references, ExecuteAlways preview of existing tiles and runtime reuse. Earlier implementation created the backdrop only at runtime. Existing user scene tuning is preserved and excluded from this commit. No Play/tests/compilation/editor visual validation executed.

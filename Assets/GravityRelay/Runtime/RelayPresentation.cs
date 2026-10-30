@@ -29,7 +29,7 @@ namespace GravityRelay
         [SerializeField] private Sprite spaceBackground;
         [SerializeField, Range(0f, 1f)] private float backgroundBrightness = 0.9f;
         [SerializeField, Range(0f, 1f)] private float backgroundParallax = 0.12f;
-        private RelaySpaceBackground spaceBackdrop;
+        [SerializeField] private RelaySpaceBackground spaceBackdrop;
         [Header("Typography")]
         [SerializeField] private Font uiFont;
         [SerializeField] private Font emphasisFont;
@@ -142,7 +142,7 @@ namespace GravityRelay
             Sprite background = spaceBackground != null ? spaceBackground : Resources.Load<Sprite>("GravityRelaySpace");
             if (background != null)
             {
-                spaceBackdrop = gameObject.AddComponent<RelaySpaceBackground>();
+                if (spaceBackdrop == null) spaceBackdrop = gameObject.AddComponent<RelaySpaceBackground>();
                 spaceBackdrop.Configure(playCamera, background, mascot.sharedMaterial,
                     backgroundBrightness, backgroundParallax);
             }

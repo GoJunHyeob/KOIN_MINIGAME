@@ -3,16 +3,22 @@ using UnityEngine;
 namespace GravityRelay
 {
     // Three reused tiles cover the camera; alternating reflection joins identical edge pixels.
+    [ExecuteAlways]
     public sealed class RelaySpaceBackground : MonoBehaviour
     {
-        private readonly SpriteRenderer[] tiles = new SpriteRenderer[3];
-        private Camera playCamera;
-        private Sprite artwork;
-        private float parallax;
-        private float brightness;
+        [SerializeField] private SpriteRenderer[] tiles = new SpriteRenderer[3];
+        [SerializeField] private Camera playCamera;
+        [SerializeField] private Sprite artwork;
+        [SerializeField, Range(0f, 1f)] private float parallax = 0.12f;
+        [SerializeField, Range(0f, 1f)] private float brightness = 0.9f;
         private float originY;
         private Color flashColor;
         private float flashAmount;
+
+        private void OnEnable()
+        {
+            if (playCamera != null) originY = playCamera.transform.position.y;
+        }
 
         public void Configure(Camera camera, Sprite sprite, Material material, float intensity, float scroll)
         {
@@ -21,6 +27,7 @@ namespace GravityRelay
             brightness = Mathf.Clamp01(intensity);
             parallax = Mathf.Clamp01(scroll);
             originY = camera.transform.position.y;
+            if (tiles == null || tiles.Length != 3) tiles = new SpriteRenderer[3];
             for (int i = 0; i < tiles.Length; i++)
             {
                 if (tiles[i] == null)
@@ -44,7 +51,7 @@ namespace GravityRelay
 
         private void LateUpdate()
         {
-            if (playCamera == null || artwork == null) return;
+            if (playCamera == null || artwork == null || tiles == null) return;
             Vector2 size = artwork.bounds.size;
             float height = playCamera.orthographicSize * 2f;
             float width = height * playCamera.aspect;
@@ -60,17 +67,22 @@ namespace GravityRelay
             {
                 int index = middle + i - 1;
                 SpriteRenderer tile = tiles[i];
-                tile.enabled = true;
-                tile.flipY = (index & 1) != 0;
-                tile.color = tint;
-                tile.transform.localScale = new Vector3(scale, scale, 1f);
-                tile.transform.position = new Vector3(cameraPoint.x,
+                if (tile == null) continue;
+                if (!tile.enabled) tile.enabled = true;
+                bool flipped = (index & 1) != 0;
+                if (tile.flipY != flipped) tile.flipY = flipped;
+                if (tile.color != tint) tile.color = tint;
+                Vector3 tileScale = new Vector3(scale, scale, 1f);
+                if (tile.transform.localScale != tileScale) tile.transform.localScale = tileScale;
+                Vector3 tilePosition = new Vector3(cameraPoint.x,
                     cameraPoint.y + index * tileHeight - offset, cameraPoint.z + 5f);
+                if (tile.transform.position != tilePosition) tile.transform.position = tilePosition;
             }
         }
 
         private void OnDisable()
         {
+            if (tiles == null) return;
             foreach (SpriteRenderer tile in tiles)
                 if (tile != null) tile.enabled = false;
         }
