@@ -11,8 +11,18 @@ namespace GravityRelay
         [SerializeField] private SpriteRenderer orbitGuide;
         [SerializeField] private RelayPlayer orbitSource;
         [SerializeField] private Transform crater;
+        private float minimumLaunchWindow;
+        private float captureAssist;
         public float Radius => radius;
+        public float MinimumLaunchWindow => minimumLaunchWindow;
+        public float CaptureAssist => captureAssist;
         public Vector2 Center => transform.position;
+
+        public void SetLandingWindow(float seconds, float assist)
+        {
+            minimumLaunchWindow = Mathf.Max(0f, seconds);
+            captureAssist = Mathf.Max(0f, assist);
+        }
 
         public void ConfigureVisuals(SpriteRenderer planetSurface, SpriteRenderer guide, RelayPlayer player, Transform craterDetail = null)
         {

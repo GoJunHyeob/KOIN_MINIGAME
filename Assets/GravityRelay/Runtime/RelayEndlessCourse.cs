@@ -3,6 +3,8 @@ using UnityEngine;
 
 namespace GravityRelay
 {
+    public enum RelayDifficultyStage { Tutorial, Beginner, Normal, Difficult, Advanced, Endless }
+
     public sealed class RelayEndlessCourse : MonoBehaviour
     {
         [SerializeField] private RelayPlayer player;
@@ -26,10 +28,10 @@ namespace GravityRelay
         [SerializeField, Range(1, 20)] private int candidateAttempts = 10;
         [Header("Progressive difficulty: placement only")]
         [SerializeField] private bool progressiveDifficulty = true;
-        [SerializeField, Min(0), Tooltip("이 점수까지 초반의 쉬운 생성 범위를 유지합니다.")]
-        private int easyLandings = 4;
+        [SerializeField, Min(0), Tooltip("처음에 쉬운 거리·좌우 배치를 유지할 이동 횟수입니다.")]
+        private int easyLandings = 3;
         [SerializeField, Min(1), Tooltip("이 점수부터는 생성 난이도를 더 높이지 않습니다.")]
-        private int fullDifficultyScore = 30;
+        private int fullDifficultyScore = 15;
         [SerializeField, Min(2.8f)] private float earlyMinVerticalGap = 4.2f;
         [SerializeField, Min(2.8f)] private float earlyMaxVerticalGap = 4.6f;
         [SerializeField, Min(2.8f)] private float lateMinVerticalGap = 4.8f;
@@ -37,6 +39,19 @@ namespace GravityRelay
         private float earlyHorizontalStep = 2.6f;
         [SerializeField, Min(0f), Tooltip("후반 x 차이의 최대값. 절대 좌우 범위도 함께 적용됩니다.")]
         private float lateHorizontalStep = 4.2f;
+        [Header("Minimum continuous launch window (seconds)")]
+        [SerializeField, Min(0.01f)] private float tutorialWindow = 0.40f;
+        [SerializeField, Min(0.01f)] private float beginnerWindow = 0.30f;
+        [SerializeField, Min(0.01f)] private float normalWindow = 0.20f;
+        [SerializeField, Min(0.01f)] private float difficultWindow = 0.15f;
+        [SerializeField, Min(0.01f)] private float advancedWindow = 0.11f;
+        [SerializeField, Min(0.01f)] private float endlessWindow = 0.11f;
+        [Header("Per-target capture assistance")]
+        [SerializeField, Range(0f, 0.8f)] private float tutorialCaptureAssist = 0.55f;
+        [SerializeField, Range(0f, 0.8f)] private float beginnerCaptureAssist = 0.30f;
+        [SerializeField, Range(0f, 0.8f)] private float normalCaptureAssist = 0.10f;
+        [SerializeField, Range(0f, 0.8f), Tooltip("구간 확보를 위한 목표별 추가 포획 여유의 상한입니다.")]
+        private float maximumCaptureAssist = 0.8f;
         [Header("Camera and recycling")]
         [SerializeField, Min(0f)] private float cameraLookAhead = 3.2f;
         [SerializeField, Min(1f)] private float cameraSharpness = 12f;
@@ -51,6 +66,8 @@ namespace GravityRelay
         private float generationMinGap;
         private float generationMaxGap;
         private float generationMaxStep;
+        private float generationWindow;
+        private float generationCaptureAssist;
         public RelayPlanet CurrentPlanet => current;
         public RelayPlanet TargetPlanet => next != null ? next : current;
         public int ConfiguredAheadCount => Mathf.Clamp(planetsAhead, 4, 6);
@@ -66,7 +83,44 @@ namespace GravityRelay
         public float HardMaximumGap => Mathf.Max(HardMinimumGap, maxVerticalGap);
 
         public float DifficultyProgressAt(int score) => Mathf.SmoothStep(0f, 1f,
-            Mathf.InverseLerp(OpeningLandings, FullDifficultyAtScore, Mathf.Max(0, score)));
+            Mathf.InverseLerp(Mathf.Max(0, OpeningLandings - 1), FullDifficultyAtScore, Mathf.Max(0, score)));
+
+        public RelayDifficultyStage StageAtScore(int score)
+        {
+            int move = Mathf.Max(0, score) + 1;
+            if (move == 1) return RelayDifficultyStage.Tutorial;
+            if (move <= 4) return RelayDifficultyStage.Beginner;
+            if (move <= 8) return RelayDifficultyStage.Normal;
+            if (move <= 15) return RelayDifficultyStage.Difficult;
+            if (move <= 25) return RelayDifficultyStage.Advanced;
+            return RelayDifficultyStage.Endless;
+        }
+
+        public float MinimumWindowAtScore(int score)
+        {
+            float seconds;
+            switch (StageAtScore(score))
+            {
+                case RelayDifficultyStage.Tutorial: seconds = tutorialWindow; break;
+                case RelayDifficultyStage.Beginner: seconds = beginnerWindow; break;
+                case RelayDifficultyStage.Normal: seconds = normalWindow; break;
+                case RelayDifficultyStage.Difficult: seconds = difficultWindow; break;
+                case RelayDifficultyStage.Advanced: seconds = advancedWindow; break;
+                default: seconds = Mathf.Max(advancedWindow, endlessWindow); break;
+            }
+            return Mathf.Max(0.01f, seconds);
+        }
+
+        private float CaptureAssistAtScore(int score)
+        {
+            switch (StageAtScore(score))
+            {
+                case RelayDifficultyStage.Tutorial: return tutorialCaptureAssist;
+                case RelayDifficultyStage.Beginner: return beginnerCaptureAssist;
+                case RelayDifficultyStage.Normal: return normalCaptureAssist;
+                default: return 0f;
+            }
+        }
 
         public void GetGenerationLimits(int score, out float minimumGap, out float maximumGap, out float maximumStep)
         {
@@ -113,7 +167,10 @@ namespace GravityRelay
             }
             random = new System.Random(seed);
             foreach (RelayPlanet planet in pool)
+            {
                 planet.gameObject.SetActive(false);
+                planet.SetLandingWindow(0f, 0f);
+            }
             active.Clear();
             upcoming.Clear();
             current = pool[0];
@@ -134,7 +191,8 @@ namespace GravityRelay
             next = upcoming.Count > 0 ? upcoming[0] : null;
             RetirePastPlanets();
             // Recheck the actual arrival phase without moving a planet that was already visible.
-            if (next != null && !player.TryFindLaunchWait(current, next.Center, next.Radius, FramedBounds, out _))
+            if (next != null && !player.TryFindLaunchWait(current, next.Center, next.Radius, FramedBounds,
+                out _, next.MinimumLaunchWindow, next.CaptureAssist))
                 return false;
             return FillHorizon();
         }
@@ -198,6 +256,8 @@ namespace GravityRelay
         {
             // Difficulty belongs to the score when this future leg will be played, not the generation frame.
             GetGenerationLimits(futureScore, out generationMinGap, out generationMaxGap, out generationMaxStep);
+            generationWindow = MinimumWindowAtScore(futureScore);
+            generationCaptureAssist = CaptureAssistAtScore(futureScore);
             RelayPlanet available = null;
             foreach (RelayPlanet planet in pool)
             {
@@ -223,6 +283,16 @@ namespace GravityRelay
                 float direction = random.NextDouble() < 0.75 ? inward : -inward;
                 float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
                     generationMaxStep, (float)random.NextDouble());
+                if (StageAtScore(futureScore) == RelayDifficultyStage.Endless)
+                {
+                    // Alternate capped sweep/crossing/diagonal patterns instead of raising speed or limits.
+                    int pattern = futureScore % 3;
+                    if (pattern == 0) deltaX = inward * Mathf.Lerp(generationMaxStep * 0.75f, generationMaxStep,
+                        (float)random.NextDouble());
+                    if (pattern == 2) deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
+                        Mathf.Max(MinimumHorizontalStep(generationMaxStep), generationMaxStep * 0.75f),
+                        (float)random.NextDouble());
+                }
                 float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
                 float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (float)random.NextDouble());
                 if (Accept(new Vector2(x, source.Center.y + gap), available, source))
@@ -252,14 +322,34 @@ namespace GravityRelay
                 Mathf.Abs(center.x - source.Center.x) > generationMaxStep + tolerance ||
                 Mathf.Abs(center.x - source.Center.x) < MinimumHorizontalStep(generationMaxStep) - tolerance)
                 return false;
-            foreach (RelayPlanet planet in active)
-            {
-                float distance = player.CaptureRadius(planet) + player.CaptureRadius(candidate) + separationMargin;
-                if ((center - planet.Center).sqrMagnitude < distance * distance)
-                    return false;
-            }
             Rect futureBounds = BoundsAt(CameraPositionFor(source));
-            if (!player.CanReachFromEitherOrbit(source, center, candidate.Radius, futureBounds))
+            float cap = Mathf.Clamp(maximumCaptureAssist, 0f, 0.8f);
+            float baseAssist = Mathf.Clamp(generationCaptureAssist, 0f, cap);
+            bool accepted = false;
+            for (int tier = 0; tier <= 8; tier++)
+            {
+                float assist = Mathf.Min(cap, baseAssist + tier * 0.1f);
+                candidate.SetLandingWindow(generationWindow, assist);
+                bool separated = true;
+                foreach (RelayPlanet planet in active)
+                {
+                    float distance = player.CaptureRadius(planet) + player.CaptureRadius(candidate) + separationMargin;
+                    if ((center - planet.Center).sqrMagnitude < distance * distance)
+                    {
+                        separated = false;
+                        break;
+                    }
+                }
+                if (!separated) break;
+                if (player.CanReachFromEitherOrbit(source, center, candidate.Radius, futureBounds,
+                    generationWindow, assist))
+                {
+                    accepted = true;
+                    break;
+                }
+                if (assist >= cap) break;
+            }
+            if (!accepted)
                 return false;
             candidate.transform.position = center;
             candidate.gameObject.SetActive(true);

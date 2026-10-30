@@ -57,7 +57,7 @@ namespace GravityRelay
             }
         }
         public float OrbitRadius(RelayPlanet planet) => planet.Radius + orbitClearance;
-        public float CaptureRadius(RelayPlanet planet) => OrbitRadius(planet) + captureMargin;
+        public float CaptureRadius(RelayPlanet planet) => OrbitRadius(planet) + captureMargin + planet.CaptureAssist;
         public RelayPlanet CurrentPlanet => endlessCourse != null ? endlessCourse.CurrentPlanet : planets[CurrentIndex];
         public RelayPlanet TargetPlanet => endlessCourse != null ? endlessCourse.TargetPlanet : planets[TargetIndex];
 
@@ -203,40 +203,50 @@ namespace GravityRelay
         }
 
         public bool TryFindLaunchWait(RelayPlanet source, Vector2 targetCenter, float targetRadius,
-            Rect bounds, out int waitTicks)
+            Rect bounds, out int waitTicks, float minimumWindowSeconds = 0f, float captureAssist = 0f)
         {
-            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, angle, orbitDirection, 3, out waitTicks);
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, angle, orbitDirection,
+                minimumWindowSeconds, captureAssist, out waitTicks);
         }
 
-        public bool CanReachFromEitherOrbit(RelayPlanet source, Vector2 targetCenter, float targetRadius, Rect bounds)
+        public bool CanReachFromEitherOrbit(RelayPlanet source, Vector2 targetCenter, float targetRadius, Rect bounds,
+            float minimumWindowSeconds = 0f, float captureAssist = 0f)
         {
-            // Future arrival phase/direction is unknown. A wider window in both directions keeps previews usable.
-            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, 1f, 4, out _) &&
-                FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, -1f, 4, out _);
+            // One extra fixed tick protects the window against an unknown future arrival phase.
+            float previewWindow = Mathf.Max(minimumWindowSeconds, Time.fixedDeltaTime * 2f) + Time.fixedDeltaTime;
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, 1f, previewWindow, captureAssist, out _) &&
+                FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, -1f, previewWindow, captureAssist, out _);
         }
 
         private bool FindLaunchWindow(RelayPlanet source, Vector2 targetCenter, float targetRadius,
-            Rect bounds, float phase, float direction, int requiredSamples, out int waitTicks)
+            Rect bounds, float phase, float direction, float minimumWindowSeconds, float captureAssist, out int waitTicks)
         {
             float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
-            float angularStep = orbitDegreesPerSecond * Mathf.Deg2Rad * dt * direction;
-            int period = Mathf.CeilToInt(360f / (orbitDegreesPerSecond * dt));
-            int stride = Mathf.Max(1, Mathf.CeilToInt(period / 180f));
-            int samples = Mathf.CeilToInt((float)period / stride) + requiredSamples;
+            float orbitSeconds = 360f / Mathf.Max(0.001f, orbitDegreesPerSecond);
+            int period = Mathf.Clamp(Mathf.CeilToInt(orbitSeconds / dt), 16, 360);
+            float sampleSeconds = orbitSeconds / period;
+            float angularStep = Mathf.PI * 2f / period * direction;
+            // N successful samples span N-1 intervals; do not overstate a window by one tick.
+            int requiredSamples = Mathf.Max(3, Mathf.CeilToInt(minimumWindowSeconds / sampleSeconds) + 1);
+            waitTicks = 0;
+            if (requiredSamples > period + 1)
+                return false;
+            int samples = period + requiredSamples - 1;
+            int flightSteps = Mathf.CeilToInt(flightTimeLimit / dt);
             int consecutive = 0;
             int runStart = 0;
             for (int sample = 0; sample < samples; sample++)
             {
-                int ticks = sample * stride;
-                float launchAngle = phase + ticks * angularStep;
+                // Wrapping joins a valid interval across 360/0 degrees instead of splitting it.
+                float launchAngle = phase + (sample % period) * angularStep;
                 Vector2 radial = new Vector2(Mathf.Cos(launchAngle), Mathf.Sin(launchAngle));
                 Vector2 point = source.Center + radial * OrbitRadius(source);
                 Vector2 speed = new Vector2(-radial.y, radial.x) * (launchSpeed * direction);
                 bool captured = false;
-                for (int step = 0; step < Mathf.CeilToInt(flightTimeLimit / dt); step++)
+                for (int step = 0; step < flightSteps; step++)
                 {
                     if (StepFlight(ref point, ref speed, targetCenter,
-                        targetRadius + orbitClearance + captureMargin, dt))
+                        targetRadius + orbitClearance + captureMargin + captureAssist, dt))
                     {
                         captured = true;
                         break;
@@ -246,12 +256,12 @@ namespace GravityRelay
                 }
                 if (captured)
                 {
-                    if (consecutive == 0) runStart = ticks;
+                    if (consecutive == 0) runStart = sample;
                     consecutive++;
-                    // Reject single-frame lucky shots; require a small usable launch window.
+                    // This is a generation rule in game seconds, not a standalone test harness.
                     if (consecutive >= requiredSamples)
                     {
-                        waitTicks = runStart;
+                        waitTicks = Mathf.RoundToInt((runStart % period) * sampleSeconds / dt);
                         return true;
                     }
                 }

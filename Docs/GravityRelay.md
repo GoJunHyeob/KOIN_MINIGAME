@@ -1,5 +1,7 @@
 # Gravity Relay 프로토타입
 
+현재 난이도는 [연속 발사 성공 구간 단계](GravityRelayDifficulty.md)를 기준으로 생성합니다. 비행 시간과 구별되는 최소 입력 시간 조건이며 공전 속도는 고정합니다.
+
 현재 크기·공전·배치 설정과 자동 검사 코드 제거 내역은 [GravityRelayLayout.md](GravityRelayLayout.md)에 정리했습니다. 이번 변경은 테스트/Play 검사 없이 적용했습니다.
 
 ## 실행

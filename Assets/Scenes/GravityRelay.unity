@@ -990,13 +990,23 @@ MonoBehaviour:
   separationMargin: 0.15
   candidateAttempts: 10
   progressiveDifficulty: 1
-  easyLandings: 4
-  fullDifficultyScore: 30
+  easyLandings: 3
+  fullDifficultyScore: 15
   earlyMinVerticalGap: 4.2
   earlyMaxVerticalGap: 4.6
   lateMinVerticalGap: 4.8
   earlyHorizontalStep: 2.6
   lateHorizontalStep: 4.2
+  tutorialWindow: 0.4
+  beginnerWindow: 0.3
+  normalWindow: 0.2
+  difficultWindow: 0.15
+  advancedWindow: 0.11
+  endlessWindow: 0.11
+  tutorialCaptureAssist: 0.55
+  beginnerCaptureAssist: 0.3
+  normalCaptureAssist: 0.1
+  maximumCaptureAssist: 0.8
   cameraLookAhead: 3.2
   cameraSharpness: 12
   retireMargin: 1

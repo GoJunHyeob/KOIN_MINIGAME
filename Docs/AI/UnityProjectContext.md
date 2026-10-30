@@ -19,7 +19,7 @@ RelayPlanet uses ExecuteAlways to synchronize explicitly referenced surface/orbi
 
 Existing SampleScene, input asset, packages and settings are preserved. GravityRelay scene must be opened explicitly (and added to build scenes if exporting a player). RelayEndlessCourse uses a 12-planet pool, upward seeded generation, shared-runtime reachability checks, frozen flight bounds and camera reframing only while orbiting. RelayPlayer owns score/state and resets the course; RelayPresentation uses monotonic target numbers and a camera-ready launch indicator. Legacy fixed-route mode remains available when the course reference is absent. See Docs/GravityRelayEndless.md. Automated validation scripts and test menus have been removed at the user request.
 
-Placement difficulty holds an easy range through score 4 and smoothly ramps to capped late ranges at score 30. Distance and lateral-step ranges are sampled only at new-target generation; player physics are never changed. RelayEndlessCourseEditor previews stage/current ranges. Current scene preserves the user's latest orbit speed=150. See Docs/GravityRelayDifficulty.md for exact limits.
+Placement difficulty keeps the first 3 moves easy and reaches capped geometry at score 15. Distance and lateral-step ranges are sampled only at new-target generation; player physics are never changed. RelayEndlessCourseEditor previews stage/current ranges. Current scene preserves the user's latest orbit speed=150. See Docs/GravityRelayDifficulty.md for exact limits.
 
 Queue 4 real upcoming planets and refill only at the far end. Queued positions stay fixed across landings, and their difficulty is sampled at the future departure score. Preview reachability requires wider launch windows in both orbit directions and is rechecked at actual arrival. See Docs/GravityRelayHorizon.md.
 
@@ -28,3 +28,5 @@ Evidence: ProjectSettings/ProjectVersion.txt, ProjectSettings/ProjectSettings.as
 2026-10-31 layout: planet radius=0.5, clearance=1.0 (orbit radius=1.5), vertical gaps 4.2..5.4, absolute x limit=2.2, minimum lateral step=1.2. No tests/Play/build validation were executed for this change.
 
 User workflow: skip automated tests, Play checks and build/compile validation after edits unless explicitly requested. Test harnesses, test menus and test-only diagnostic getters were removed. Continue git status, feat: commit, push and PR updates.
+
+2026-10-31 timing stages: next successful move 1/2-4/5-8/9-15/16-25/26+ requires a contiguous launch window of 0.40/0.30/0.20/0.15/0.11/0.11 seconds. Runtime generation samples a circular interval in both orbit directions and stores fixed per-target capture assistance. Endless patterns combine within existing caps; physics speed/gravity/orbit speed remain unchanged. No test harness, Play or compilation validation was added/executed. Static meteors remain optional future content.
