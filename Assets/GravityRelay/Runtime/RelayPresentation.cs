@@ -49,6 +49,7 @@ namespace GravityRelay
         [SerializeField] private Font uiFont;
         [SerializeField] private Font emphasisFont;
         [Header("Launch and landing feedback")]
+        [SerializeField, Range(0.5f, 1f)] private float characterDisplayScale = 0.88f;
         [SerializeField, Min(0.1f)] private float arrowLength = 0.9f;
         [SerializeField, Min(0.01f)] private float arrowWidth = 0.055f;
         [SerializeField, Min(0.1f)] private float feedbackDuration = 0.65f;
@@ -204,7 +205,8 @@ namespace GravityRelay
             BlockTransitionInput();
             Sprite particleDot = feedbackParticleSprite != null ? feedbackParticleSprite : mascot.sprite;
             mascotBaseColor = mascot.color;
-            mascotBaseScale = mascot.transform.localScale;
+            mascotBaseScale = mascot.transform.localScale * characterDisplayScale;
+            mascot.transform.localScale = mascotBaseScale;
             mascotBaseRotation = mascot.transform.localRotation;
             backgroundBaseColor = playCamera.backgroundColor;
             Sprite background = spaceBackground != null ? spaceBackground : Resources.Load<Sprite>("GravityRelaySpace");
