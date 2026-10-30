@@ -162,12 +162,13 @@ namespace GravityRelay.Editor
                         foreach (int previous in waits)
                             Fly(player, previous, ref sawCapture);
                         int expectedScore = player.Score + 1;
-                        Fly(player, wait, ref sawCapture);
+                        float transferTime = Fly(player, wait, ref sawCapture);
                         if (player.State == RelayState.Orbiting && player.Score == expectedScore)
                         {
                             waits.Add(wait);
                             landed = true;
-                            Debug.Log("RELAY_TEST landing " + expectedScore + ", wait ticks=" + wait);
+                            Debug.Log("RELAY_TEST landing " + expectedScore + ", wait ticks=" + wait +
+                                ", flight+capture=" + transferTime.ToString("0.00") + "s");
                         }
                     }
                     Require(landed, "No reachable launch window on leg " + leg);
@@ -215,7 +216,7 @@ namespace GravityRelay.Editor
             }
         }
 
-        private static void Fly(RelayPlayer player, int wait, ref bool sawCapture)
+        private static float Fly(RelayPlayer player, int wait, ref bool sawCapture)
         {
             for (int tick = 0; tick < wait; tick++)
                 player.Simulate(0.02f);
@@ -226,8 +227,9 @@ namespace GravityRelay.Editor
                 player.Simulate(0.02f);
                 sawCapture |= player.State == RelayState.Capturing;
                 if (player.State == RelayState.Dead || player.State == RelayState.Orbiting)
-                    return;
+                    return (tick + 1) * 0.02f;
             }
+            return 230 * 0.02f;
         }
 
         private static void Require(bool condition, string message)

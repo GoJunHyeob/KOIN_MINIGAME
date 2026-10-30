@@ -23,6 +23,10 @@ namespace GravityRelay
         private int feedbackScore;
         private float landedAt = -100f;
         private float diedAt = -100f;
+        private float launchedAt = -100f;
+        private Vector3 mascotBaseScale;
+        private Quaternion mascotBaseRotation;
+        private Vector2 launchVisualDirection;
         private Vector2 landingCenter;
         private float landingRadius;
         private string targetText;
@@ -76,12 +80,18 @@ namespace GravityRelay
             if (playCamera != null && launchArrow != null)
                 playCamera.backgroundColor = backgroundBaseColor;
             if (mascot != null && launchArrow != null)
+            {
                 mascot.color = mascotBaseColor;
+                mascot.transform.localScale = mascotBaseScale;
+                mascot.transform.localRotation = mascotBaseRotation;
+            }
         }
 
         private void Start()
         {
             mascotBaseColor = mascot.color;
+            mascotBaseScale = mascot.transform.localScale;
+            mascotBaseRotation = mascot.transform.localRotation;
             backgroundBaseColor = playCamera.backgroundColor;
             launchArrow = CreateLine("Tangent launch arrow", 5, false);
             landingPulse = CreateLine("Landing pulse", 64, true);
@@ -148,8 +158,13 @@ namespace GravityRelay
                 (previousState == RelayState.Dead && player.State == RelayState.Orbiting);
             if (restarted)
             {
-                landedAt = diedAt = -100f;
+                landedAt = diedAt = launchedAt = -100f;
                 statusText = null;
+            }
+            if (stateChanged && player.State == RelayState.Flying)
+            {
+                launchedAt = Time.time;
+                launchVisualDirection = player.Velocity.normalized;
             }
             if (player.Score > feedbackScore)
             {
@@ -167,6 +182,25 @@ namespace GravityRelay
             float flash = player.State == RelayState.Dead
                 ? 0.35f * Mathf.Clamp01(1f - (Time.time - diedAt) / feedbackDuration) : 0f;
             playCamera.backgroundColor = Color.Lerp(backgroundBaseColor, failure, flash);
+
+            // Visual impulses never alter movement, input timing, or the shared time scale.
+            mascot.transform.localRotation = mascotBaseRotation;
+            mascot.transform.localScale = mascotBaseScale;
+            float launchAge = Time.time - launchedAt;
+            float landingAge = Time.time - landedAt;
+            if (player.State == RelayState.Flying && launchAge < 0.1f)
+            {
+                float impulse = 1f - Mathf.Clamp01(launchAge / 0.1f);
+                mascot.transform.localRotation = Quaternion.Euler(0f, 0f,
+                    Mathf.Atan2(launchVisualDirection.y, launchVisualDirection.x) * Mathf.Rad2Deg);
+                mascot.transform.localScale = Vector3.Scale(mascotBaseScale,
+                    new Vector3(1f + 0.55f * impulse, 1f - 0.3f * impulse, 1f));
+            }
+            else if (player.State != RelayState.Dead && landingAge < 0.14f)
+            {
+                float impulse = Mathf.Sin(Mathf.Clamp01(landingAge / 0.14f) * Mathf.PI);
+                mascot.transform.localScale = mascotBaseScale * (1f + 0.25f * impulse);
+            }
 
             launchArrow.enabled = player.State == RelayState.Orbiting;
             if (launchArrow.enabled)

@@ -16,36 +16,38 @@ Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 
 
 ## Inspector 초기값 (BCSD Player > RelayPlayer)
 
-아래 표는 코드 기본값이다. 현재 저장된 씬은 사용자가 조정한 Launch Speed=7, Gravity Strength=22, Orbit Degrees Per Second=120을 보존한다. 재미에 대한 최종 튜닝은 에디터에서 직접 플레이해 결정한다.
+아래 표는 "빵 쏘고 탁 받는" 조작감을 위한 코드/씬 기준값이다. 이전 값과 조정 근거, 무한 진행 인계 조건은 [GravityRelayBalance.md](GravityRelayBalance.md)에 기록한다. 재미에 대한 최종 튜닝은 에디터에서 직접 플레이해 결정한다.
 
 |항목|값|의미|
 |---|---:|---|
 |Orbit Clearance|0.38|공전 반경 = 행성 반경 + 여유|
-|Orbit Degrees Per Second|110|공전 각속도 (착륙 시 진행 방향 보존)|
-|Launch Speed|6|units/s, 접선 방향|
-|Gravity Strength|18|목표 행성에만 중력 적용|
+|Orbit Degrees Per Second|150|공전 각속도 (착륙 시 진행 방향 보존)|
+|Launch Speed|15|units/s, 접선 방향, 조정 범위 10~20|
+|Gravity Strength|60|목표 행성에만 중력 적용|
 |Softening|0.8|가속도 = min(max, strength/(거리²+softening²))|
-|Max Acceleration|12|units/s² 상한|
-|Capture Margin|0.22|포획 반경 = 행성 반경 + 여유 + 이 값|
-|Capture Duration|0.15|초, SmoothStep 착륙 보정|
+|Max Acceleration|40|units/s² 상한|
+|Capture Margin|0.30|포획 반경 = 행성 반경 + 여유 + 이 값|
+|Capture Duration|0.06|초, 빠른 착륙 보정|
 |Flight Time Limit|4|초|
 |Screen Exit Margin|0.25|화면 경계 바깥 허용 거리|
 
 ## 빠른 밸런스 비교와 화면 표시
 
-BCSD Player의 Relay Player Inspector 맨 아래에 쉬움/기본/정밀 버튼이 있다. 버튼은 Undo 가능하며 네 값만 변경한다. 별도 선택 전에는 현재 설정을 유지한다.
+BCSD Player의 Relay Player Inspector 맨 아래에 쉬움/기본: 빵·탁/정밀 버튼이 있다. 버튼은 Undo 가능하며 아래 네 값과 가속도 상한(40), 착륙 보정 시간(0.06초)을 변경한다.
 
 |프리셋|Launch Speed|Gravity Strength|Capture Margin|Orbit Degrees Per Second|
 |---|---:|---:|---:|---:|
-|쉬움|6|22|0.35|95|
-|기본|6|18|0.22|110|
-|정밀|7|14|0.1|120|
+|쉬움|12|55|0.42|125|
+|기본: 빵·탁|15|60|0.30|150|
+|정밀|18|70|0.18|170|
 
 프리셋은 비교 시작점이며 실제 난이도와 조작감은 직접 플레이로 확인한다. 먼저 기본 설정으로 발사 방향을 익힌 다음 한 번에 한 값씩 조정한다. Play 중 수정한 값은 종료하면 되돌아가므로 수치를 기록하고 종료 후 재입력/씬 저장한다.
 
 Planet 1~3 > Relay Planet > Radius를 변경하면 Surface 크기와 공전 가이드가 편집 모드와 Play 모드 모두 갱신된다. BCSD Player의 Orbit Clearance 변경도 각 가이드에 반영된다. 금색 목표 링은 Play 중 Capture Margin까지 반영하므로 포획 가능한 범위를 눈으로 확인할 수 있다. 반경을 크게 바꾸면 행성 간격이나 화면 배치를 함께 조정해야 한다.
 
 Relay Input and HUD > Relay Presentation의 Arrow Length/Arrow Width는 방향 화살표 크기, Feedback Duration은 착륙 강조·실패 플래시 시간이다. 궤적 계산과 착륙 판정에는 영향을 주지 않는다.
+
+발사 순간 0.10초 늘어남과 착륙 순간 0.14초 크기 튕김을 추가했다. 방향·크기 연출은 캐릭터 그림에만 적용하며 이동 물리나 게임 시간을 변경하지 않는다.
 
 FixedUpdate에서 직접 위치/속도를 적분한다. 포획은 이동 선분과 반경 검사로 빠른 이동 누락을 방지한다. Capturing 동안 입력을 저장하지 않으며 포획 완료 시에만 점수를 올린다. 비행 시간은 발사 시 초기화. 재시작은 씬 재로드 없이 모든 이동/점수/예약 입력을 초기화한다.
 
