@@ -101,6 +101,11 @@ namespace GravityRelay
 
         private void CreateFlightTrail()
         {
+            // The scene owns the normal BCSD trail so designers can tune it in the Inspector.
+            flightTrail = body.GetComponent<TrailRenderer>();
+            if (flightTrail != null) return;
+
+            // Fallback keeps freshly generated scenes playable until the saved component is added.
             var item = new GameObject("BCSD purple flight trail", typeof(TrailRenderer));
             item.transform.SetParent(body.transform, false);
             flightTrail = item.GetComponent<TrailRenderer>();
