@@ -54,6 +54,7 @@ namespace GravityRelay
         [SerializeField, Min(0.1f)] private float feedbackDuration = 0.65f;
         private LineRenderer launchArrow;
         private LineRenderer landingPulse;
+        private LineRenderer arrivalPulse;
         private Color mascotBaseColor;
         private Color backgroundBaseColor;
         private RelayState previousState;
@@ -63,7 +64,6 @@ namespace GravityRelay
         private float launchedAt = -100f;
         private Vector3 mascotBaseScale;
         private Quaternion mascotBaseRotation;
-        private Vector2 launchVisualDirection;
         private Vector2 landingCenter;
         private float landingRadius;
         private InputActionAsset ownedActions;
@@ -169,6 +169,7 @@ namespace GravityRelay
             if (spaceBackdrop != null) spaceBackdrop.SetFlash(Color.white, 0f);
             if (launchArrow != null) launchArrow.enabled = false;
             if (landingPulse != null) landingPulse.enabled = false;
+            if (arrivalPulse != null) arrivalPulse.enabled = false;
             if (playCamera != null && launchArrow != null)
                 playCamera.backgroundColor = backgroundBaseColor;
             if (mascot != null && launchArrow != null)
@@ -215,6 +216,7 @@ namespace GravityRelay
             }
             launchArrow = CreateLine("Tangent launch arrow", 5, false);
             landingPulse = CreateLine("Landing pulse", 64, true);
+            arrivalPulse = CreateLine("Orbit arrival pulse", 64, true);
             previousState = player.State;
             feedbackScore = player.Score;
             if (bcsdSprite != null)
@@ -448,7 +450,6 @@ namespace GravityRelay
             if (stateChanged && player.State == RelayState.Flying)
             {
                 launchedAt = Time.time;
-                launchVisualDirection = player.Velocity.normalized;
             }
             if (player.Score > feedbackScore)
             {
@@ -476,8 +477,6 @@ namespace GravityRelay
             if (player.State == RelayState.Flying && launchAge < 0.1f)
             {
                 float impulse = 1f - Mathf.Clamp01(launchAge / 0.1f);
-                mascot.transform.localRotation = Quaternion.Euler(0f, 0f,
-                    Mathf.Atan2(launchVisualDirection.y, launchVisualDirection.x) * Mathf.Rad2Deg);
                 mascot.transform.localScale = Vector3.Scale(mascotBaseScale,
                     new Vector3(1f + 0.55f * impulse, 1f - 0.3f * impulse, 1f));
             }
@@ -507,6 +506,7 @@ namespace GravityRelay
             }
 
             landingPulse.enabled = landed && screen == RelayScreen.Playing;
+            arrivalPulse.enabled = landed && screen == RelayScreen.Playing;
             if (landed)
             {
                 float progress = Mathf.Clamp01((Time.time - landedAt) / feedbackDuration);
@@ -518,6 +518,15 @@ namespace GravityRelay
                 {
                     float angle = i * Mathf.PI * 2f / landingPulse.positionCount;
                     landingPulse.SetPosition(i, landingCenter + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius);
+                }
+                float arrivalRadius = landingRadius * Mathf.Lerp(1.3f, 0.98f, Mathf.SmoothStep(0f, 1f, progress));
+                Color arrival = new Color(0.95f, 0.87f, 1f, 0.78f * (1f - progress));
+                arrivalPulse.startWidth = arrivalPulse.endWidth = arrowWidth * 0.85f;
+                arrivalPulse.startColor = arrivalPulse.endColor = arrival;
+                for (int i = 0; i < arrivalPulse.positionCount; i++)
+                {
+                    float angle = i * Mathf.PI * 2f / arrivalPulse.positionCount;
+                    arrivalPulse.SetPosition(i, landingCenter + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * arrivalRadius);
                 }
             }
 

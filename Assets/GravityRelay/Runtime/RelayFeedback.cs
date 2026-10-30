@@ -15,9 +15,11 @@ namespace GravityRelay
         private Vector3[] eyeScales;
         private Quaternion[] eyeRotations;
         private LineRenderer mouth;
+        private readonly LineRenderer[] launchFace = new LineRenderer[3];
         private readonly LineRenderer[] glow = new LineRenderer[2];
         private readonly ParticleSystem[] bursts = new ParticleSystem[3];
         private readonly AudioSource[] voices = new AudioSource[3];
+        private TrailRenderer flightTrail;
         private AudioClip[] clips;
         private Material particleMaterial;
         private int comboCap;
@@ -74,6 +76,8 @@ namespace GravityRelay
             }
             for (int i = 0; i < glow.Length; i++)
                 glow[i] = MakeLine("Combo gravity glow " + i, transform, 64, true, true, 1);
+            CreateFlightTrail();
+            CreateLaunchFace();
             if (placeholder)
             {
                 SpriteRenderer[] children = body.GetComponentsInChildren<SpriteRenderer>(true);
@@ -95,6 +99,36 @@ namespace GravityRelay
                 mouth.startColor = mouth.endColor = new Color(0.8f, 0.64f, 1f);
             }
             Subscribe();
+        }
+
+        private void CreateFlightTrail()
+        {
+            var item = new GameObject("BCSD purple flight trail", typeof(TrailRenderer));
+            item.transform.SetParent(body.transform, false);
+            flightTrail = item.GetComponent<TrailRenderer>();
+            flightTrail.time = 0.32f;
+            flightTrail.minVertexDistance = 0.025f;
+            flightTrail.widthMultiplier = 0.18f;
+            flightTrail.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.45f, 0.45f), new Keyframe(1f, 0f));
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(new Color(0.92f, 0.78f, 1f), 0f), new GradientColorKey(new Color(0.56f, 0.18f, 0.95f), 0.55f), new GradientColorKey(new Color(0.18f, 0.05f, 0.42f), 1f) },
+                new[] { new GradientAlphaKey(0.9f, 0f), new GradientAlphaKey(0.52f, 0.45f), new GradientAlphaKey(0f, 1f) });
+            flightTrail.colorGradient = gradient;
+            flightTrail.sharedMaterial = body.sharedMaterial;
+            flightTrail.sortingOrder = Mathf.Max(0, body.sortingOrder - 1);
+            flightTrail.emitting = false;
+            flightTrail.autodestruct = false;
+        }
+
+        private void CreateLaunchFace()
+        {
+            for (int i = 0; i < launchFace.Length; i++)
+            {
+                launchFace[i] = MakeLine("BCSD launch expression " + i, body.transform, i == 2 ? 7 : 2, false, false, 14);
+                launchFace[i].startWidth = launchFace[i].endWidth = 0.026f;
+                launchFace[i].startColor = launchFace[i].endColor = new Color(0.91f, 0.78f, 1f);
+            }
         }
 
         private LineRenderer MakeLine(string name, Transform parent, int points, bool loop, bool world, int order)
@@ -143,6 +177,12 @@ namespace GravityRelay
             foreach (ParticleSystem burst in bursts)
                 if (burst != null) burst.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             foreach (LineRenderer ring in glow) if (ring != null) ring.enabled = false;
+            if (flightTrail != null)
+            {
+                flightTrail.emitting = false;
+                flightTrail.Clear();
+            }
+            foreach (LineRenderer feature in launchFace) if (feature != null) feature.enabled = false;
             if (body != null) body.sprite = baseSprite;
         }
 
@@ -157,6 +197,11 @@ namespace GravityRelay
 
         private void OnLaunch(Vector2 point, int combo)
         {
+            if (flightTrail != null)
+            {
+                flightTrail.Clear();
+                flightTrail.emitting = true;
+            }
             PlaySound(0, combo);
             Emit(0, point, 8 + Mathf.RoundToInt(Strength(combo) * 8f),
                 new Color(0.73f, 0.6f, 1f), -player.Velocity.normalized);
@@ -165,6 +210,7 @@ namespace GravityRelay
         private void OnLanding(Vector2 point, int combo)
         {
             lastLanding = Time.time;
+            if (flightTrail != null) flightTrail.emitting = false;
             PlaySound(1, combo);
             Emit(1, point, 12 + Mathf.RoundToInt(Strength(combo) * 36f),
                 new Color(0.84f, 0.65f, 1f), Vector2.zero);
@@ -172,6 +218,7 @@ namespace GravityRelay
 
         private void OnFailure(Vector2 point)
         {
+            if (flightTrail != null) flightTrail.emitting = false;
             PlaySound(2, 0);
             Emit(2, point, 22, new Color(1f, 0.4f, 0.66f), Vector2.zero);
         }
@@ -199,6 +246,8 @@ namespace GravityRelay
         private void LateUpdate()
         {
             if (player == null) return;
+            if (flightTrail != null)
+                flightTrail.emitting = playing && player.State == RelayState.Flying;
             DrawExpression();
             bool visible = playing && player.State != RelayState.Dead && player.Combo > 0;
             foreach (LineRenderer ring in glow) ring.enabled = visible;
@@ -232,6 +281,7 @@ namespace GravityRelay
             Sprite custom = expression >= 0 && expressions != null && expression < expressions.Length
                 ? expressions[expression] : null;
             body.sprite = custom != null ? custom : baseSprite;
+            DrawLaunchFace(expression);
             if (!placeholder) return;
             bool draw = custom == null;
             for (int i = 0; i < eyes.Length; i++)
@@ -251,11 +301,34 @@ namespace GravityRelay
             }
         }
 
+        private void DrawLaunchFace(int expression)
+        {
+            bool focused = !placeholder && expression == 0 && body.sprite == baseSprite;
+            foreach (LineRenderer feature in launchFace) feature.enabled = focused;
+            if (!focused) return;
+
+            Vector2 size = baseSprite.bounds.size;
+            float eyebrowY = size.y * 0.18f;
+            float eyeY = size.y * 0.105f;
+            float eyeX = size.x * 0.115f;
+            float eyebrow = size.x * 0.075f;
+            launchFace[0].SetPosition(0, new Vector3(-eyeX - eyebrow, eyebrowY + eyebrow * 0.18f, 0f));
+            launchFace[0].SetPosition(1, new Vector3(-eyeX + eyebrow, eyebrowY - eyebrow * 0.18f, 0f));
+            launchFace[1].SetPosition(0, new Vector3(eyeX - eyebrow, eyebrowY - eyebrow * 0.18f, 0f));
+            launchFace[1].SetPosition(1, new Vector3(eyeX + eyebrow, eyebrowY + eyebrow * 0.18f, 0f));
+            for (int i = 0; i < launchFace[2].positionCount; i++)
+            {
+                float t = i / (launchFace[2].positionCount - 1f);
+                launchFace[2].SetPosition(i, new Vector3(Mathf.Lerp(-size.x * 0.085f, size.x * 0.085f, t), eyeY - size.y * 0.14f + Mathf.Sin(t * Mathf.PI) * size.y * 0.018f, 0f));
+            }
+        }
+
         private void OnDisable()
         {
             Unsubscribe();
             ResetFeedback();
             if (mouth != null) mouth.enabled = false;
+            foreach (LineRenderer feature in launchFace) if (feature != null) feature.enabled = false;
             if (eyes == null) return;
             for (int i = 0; i < eyes.Length; i++)
             {
