@@ -454,7 +454,7 @@ namespace GravityRelay
                 Quaternion.identity, new Vector3(scale, scale, 1f));
             try
             {
-                if (screen == ScreenState.Playing) DrawHud();
+                if (screen == ScreenState.Playing) DrawHud(pixels, scale);
                 else
                 {
                     DrawPanel(new Rect(0, 0, 450, 800), new Color(0f, 0.01f, 0.03f, 0.55f));
@@ -520,7 +520,7 @@ namespace GravityRelay
             GUI.Label(new Rect(40, 610, 370, 25), "R / ENTER / SPACE TO RESTART", textStyle);
         }
 
-        private void DrawHud()
+        private void DrawHud(Rect pixels, float scale)
         {
             // The continuous map now passes behind the HUD; preserve score contrast.
             GUI.color = new Color(0.015f, 0.025f, 0.055f, 0.85f);
