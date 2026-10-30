@@ -86,6 +86,9 @@ namespace GravityRelay.Editor
             hud.GetComponent<RelayPresentation>().ConfigureTypography(
                 AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-Regular.otf"),
                 AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-SemiBold.otf"));
+            GameObject canvasPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/GravityRelay/UI/Resources/GravityRelayCanvas.prefab");
+            GameObject canvasObject = (GameObject)PrefabUtility.InstantiatePrefab(canvasPrefab);
+            hud.GetComponent<RelayPresentation>().ConfigureCanvas(canvasObject.GetComponent<RelayCanvasView>());
             RelaySceneSetup.WireVisualsInCurrentScene();
             RelayEndlessSetup.EnableInCurrentScene();
             EditorSceneManager.MarkSceneDirty(scene);

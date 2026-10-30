@@ -329,9 +329,7 @@ namespace GravityRelay
 
         private Rect CameraBounds()
         {
-            Vector3 lower = playCamera.ViewportToWorldPoint(new Vector3(0f, 0f, 10f));
-            Vector3 upper = playCamera.ViewportToWorldPoint(new Vector3(1f, 1f, 10f));
-            return Rect.MinMaxRect(lower.x, lower.y, upper.x, upper.y);
+            return RelayScreenLayout.WorldBounds(playCamera, playCamera.transform.position);
         }
 
         private void Die(string reason)

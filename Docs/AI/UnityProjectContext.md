@@ -64,3 +64,6 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 revised BCSD sprite: image_gen edit of user reference, charcoal round body, purple ring and white face; no hands/arms/gray feet/legs/pen/notebook. Art/BCSDCharacterClean.png directly wired into scene and scene builder; original asset retained. Visible width kept near1.55 units by importer PPU, child scale1.15 unchanged. User scene tuning preserved. See Docs/GravityRelayCharacter.md for full generation prompt. No Unity Play/tests/compile/game visual validation executed.
+
+
+2026-10-31 responsive Canvas: RelayScreenLayout unifies safe-area fitted 9:16 viewport, generation/flight world bounds and pointer hit area. RelayCanvasView uses saved uGUI Canvas/Scaler1080x1920/pointer-only InputSystem EventSystem hierarchy and matching Resources prefab; IMGUI removed. Safe-area play-frame scaling, bottom HUD anchor and four decorative space-extension RawImages. Portrait/default window1080x1920 settings, no forced physical resolution. Arithmetic examples recorded for9:16/19.5:9/20:9/tablet/insets, not device validation. User scene tuning retained; no Unity tests/Play/compile/build/visual checks. See Docs/GravityRelayScreenLayout.md.

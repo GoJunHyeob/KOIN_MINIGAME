@@ -25,3 +25,5 @@ Unity PlayerPrefs의 `GravityRelay.BestScore.v1` 정수 키에 로컬 최고 점
 기존 Relay Input and HUD의 RelayPresentation이 화면과 입력·기록을 담당하고, BCSD Player의 RelayPlayer가 실제 이동 실행 여부를 관리한다. 기존 씬 참조를 그대로 사용하므로 새 Canvas/EventSystem/프리팹이나 패키지가 필요하지 않다. 기존 물리값·난이도·행성 생성 구조는 변경하지 않았다.
 
 사용자 요청대로 테스트·Play·빌드/컴파일 검사를 실행하지 않았으며, 별도 검증 코드도 추가하지 않았다. 열려 있는 에디터에는 수정 스크립트를 반영하고 GravityRelay 씬을 열면 시작 화면부터 진입한다.
+
+2026-10-31 UI 전환: 현재 시작·플레이·결과·일시정지 표시는 RelayCanvasView와 씬에 저장된 정식 Canvas UI가 담당합니다. CanvasScaler 기준 1080×1920, 공통 Safe 9:16 Play Frame과 실제 Button 영역을 사용하며 IMGUI는 제거했습니다. 상세 설정과 계산 예시는 Docs/GravityRelayScreenLayout.md를 따릅니다.

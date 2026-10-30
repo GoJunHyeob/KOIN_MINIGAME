@@ -243,9 +243,7 @@ namespace GravityRelay
 
         private Rect BoundsAt(Vector3 point)
         {
-            float height = playCamera.orthographicSize;
-            float width = height * (9f / 16f);
-            return Rect.MinMaxRect(point.x - width, point.y - height, point.x + width, point.y + height);
+            return RelayScreenLayout.WorldBounds(playCamera, point);
         }
 
         private void RetirePastPlanets()

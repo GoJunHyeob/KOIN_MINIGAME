@@ -5,9 +5,8 @@ namespace GravityRelay
 {
     public sealed class RelayPresentation : MonoBehaviour
     {
-        private enum ScreenState { Start, Playing, Paused, Results }
         private const string BestScoreKey = "GravityRelay.BestScore.v1";
-        private ScreenState screen = ScreenState.Start;
+        private RelayScreen screen = RelayScreen.Start;
         private bool initialized;
         private bool inputBlocked = true;
         private int blockedFrame;
@@ -18,7 +17,8 @@ namespace GravityRelay
         private bool bestDirty;
         private string bestText;
         private string resultScoreText;
-        private GUIStyle buttonStyle;
+        [SerializeField] private RelayCanvasView canvasView;
+        private bool canvasBound;
         [SerializeField] private RelayPlayer player;
         [SerializeField] private Camera playCamera;
         [SerializeField] private SpriteRenderer targetMarker;
@@ -37,11 +37,9 @@ namespace GravityRelay
         [SerializeField, Range(0f, 1f)] private float effectsVolume = 0.45f;
         [SerializeField, Range(5, 30)] private int comboFeedbackCap = 15;
         private RelayFeedback feedback;
-        private GUIStyle hudScoreStyle, hudBestStyle, comboStyle, hudButtonStyle;
         private string comboText;
         private string resultComboText;
         private int displayedCombo = -1;
-        private static readonly Rect PauseButtonRect = new Rect(374f, 720f, 44f, 56f);
         [Header("Space background")]
         [SerializeField] private Sprite spaceBackground;
         [SerializeField, Range(0f, 1f)] private float backgroundBrightness = 0.9f;
@@ -71,7 +69,6 @@ namespace GravityRelay
         private InputActionAsset ownedActions;
         private InputAction launchAction;
         private InputAction cancelAction;
-        private GUIStyle titleStyle, textStyle, scoreStyle;
         private string scoreText;
         private int displayedScore = -1;
 
@@ -95,11 +92,42 @@ namespace GravityRelay
         {
             uiFont = regular;
             emphasisFont = emphasis;
-            titleStyle = null;
+            if (canvasView != null) canvasView.SetFonts(regular, emphasis);
+        }
+
+        public void ConfigureCanvas(RelayCanvasView view)
+        {
+            UnbindCanvas();
+            canvasView = view;
+            canvasView.Configure(playCamera);
+            if (Application.isPlaying) BindCanvas();
+        }
+
+        private void BindCanvas()
+        {
+            if (canvasView == null || canvasBound) return;
+            canvasView.StartRequested += StartRun;
+            canvasView.TitleRequested += ShowTitle;
+            canvasView.ResumeRequested += ResumeRun;
+            canvasView.PauseRequested += HandleBack;
+            canvasView.LayoutChanged += BlockTransitionInput;
+            canvasBound = true;
+        }
+
+        private void UnbindCanvas()
+        {
+            if (canvasView == null || !canvasBound) return;
+            canvasView.StartRequested -= StartRun;
+            canvasView.TitleRequested -= ShowTitle;
+            canvasView.ResumeRequested -= ResumeRun;
+            canvasView.PauseRequested -= HandleBack;
+            canvasView.LayoutChanged -= BlockTransitionInput;
+            canvasBound = false;
         }
 
         private void OnEnable()
         {
+            BindCanvas();
             // Clone the template map so another scene's input remains independent.
             ownedActions = Instantiate(inputActions);
             launchAction = ownedActions.FindAction("Player/Attack", true);
@@ -119,13 +147,14 @@ namespace GravityRelay
 #endif
             if (initialized)
             {
-                player.SetGameplayActive(screen == ScreenState.Playing);
+                player.SetGameplayActive(screen == RelayScreen.Playing);
                 BlockTransitionInput();
             }
         }
 
         private void OnDisable()
         {
+            UnbindCanvas();
             if (initialized)
             {
                 RecordScore();
@@ -152,6 +181,21 @@ namespace GravityRelay
 
         private void Start()
         {
+            RelayScreenLayout.Apply(playCamera);
+            if (canvasView == null)
+            {
+                GameObject prefab = Resources.Load<GameObject>("GravityRelayCanvas");
+                if (prefab == null)
+                {
+                    Debug.LogError("Gravity Relay Canvas prefab is missing.", this);
+                    enabled = false;
+                    return;
+                }
+                canvasView = Instantiate(prefab).GetComponent<RelayCanvasView>();
+            }
+            canvasView.Configure(playCamera);
+            canvasView.SetFonts(uiFont, emphasisFont);
+            BindCanvas();
             bestScore = Mathf.Max(0, PlayerPrefs.GetInt(BestScoreKey, 0));
             bestText = "최고  " + bestScore.ToString("00");
             player.SetGameplayActive(false);
@@ -193,22 +237,17 @@ namespace GravityRelay
 
         private void Update()
         {
-            // Letterbox to a fixed portrait playing field on desktop and mobile.
-            const float aspect = 9f / 16f;
-            float screenAspect = (float)Screen.width / Screen.height;
-            playCamera.rect = screenAspect > aspect
-                ? new Rect((1f - aspect / screenAspect) * 0.5f, 0f, aspect / screenAspect, 1f)
-                : new Rect(0f, (1f - screenAspect / aspect) * 0.5f, 1f, screenAspect / aspect);
+            RelayScreenLayout.Apply(playCamera);
 
             RecordScore();
-            if (screen == ScreenState.Playing && player.State == RelayState.Dead)
+            if (screen == RelayScreen.Playing && player.State == RelayState.Dead)
             {
                 resultScore = player.Score;
                 resultScoreText = resultScore.ToString("00");
                 resultComboText = "최대 콤보  " + player.PeakCombo;
                 newRecord = resultScore > bestAtRunStart;
                 SaveBest();
-                screen = ScreenState.Results;
+                screen = RelayScreen.Results;
                 BlockTransitionInput();
             }
 
@@ -217,7 +256,10 @@ namespace GravityRelay
             if (inputBlocked)
             {
                 if (Time.frameCount > blockedFrame && !AnyPrimaryInputHeld())
+                {
                     inputBlocked = false;
+                    if (canvasView != null) canvasView.SetControlsEnabled(true);
+                }
                 return;
             }
             if (cancelAction != null && cancelAction.WasPressedThisFrame())
@@ -225,7 +267,7 @@ namespace GravityRelay
                 HandleBack();
                 return;
             }
-            if (screen != ScreenState.Playing) return;
+            if (screen != RelayScreen.Playing) return;
             if (launchAction.WasPressedThisFrame() && PointerInsideGame())
                 player.RequestLaunch();
         }
@@ -234,6 +276,11 @@ namespace GravityRelay
         {
             inputBlocked = true;
             blockedFrame = Time.frameCount;
+            if (canvasView != null)
+            {
+                canvasView.Show(screen);
+                canvasView.SetControlsEnabled(false);
+            }
         }
 
         private bool AnyPrimaryInputHeld()
@@ -252,48 +299,33 @@ namespace GravityRelay
         private bool PointerInsideGame()
         {
             InputDevice device = launchAction.activeControl?.device;
-            if (device is Mouse mouse) return playCamera.pixelRect.Contains(mouse.position.ReadValue()) &&
-                !PointerOverPauseButton(mouse.position.ReadValue());
+            if (device is Mouse mouse) return RelayScreenLayout.PlayArea.Contains(mouse.position.ReadValue()) &&
+                (canvasView == null || !canvasView.BlocksPointer(mouse.position.ReadValue()));
             if (device is Touchscreen touchscreen)
-                return new Rect(0f, 0f, Screen.width, Screen.height).Contains(touchscreen.primaryTouch.position.ReadValue()) &&
-                    !PointerOverPauseButton(touchscreen.primaryTouch.position.ReadValue());
+                return RelayScreenLayout.PlayArea.Contains(touchscreen.primaryTouch.position.ReadValue()) &&
+                    (canvasView == null || !canvasView.BlocksPointer(touchscreen.primaryTouch.position.ReadValue()));
             return true;
-        }
-
-        private bool PointerOverPauseButton(Vector2 point)
-        {
-            Rect pixels = playCamera.pixelRect;
-            Rect safe = Screen.safeArea;
-            float left = Mathf.Max(pixels.xMin, safe.xMin);
-            float right = Mathf.Min(pixels.xMax, safe.xMax);
-            float top = Mathf.Min(pixels.yMax, safe.yMax);
-            float bottom = Mathf.Max(pixels.yMin, safe.yMin);
-            float scale = Mathf.Min((right - left) / 450f, (top - bottom) / 800f);
-            if (scale <= 0f) return false;
-            float x = left + (right - left - 450f * scale) * 0.5f;
-            float y = Screen.height - top + (top - bottom - 800f * scale) * 0.5f;
-            return PauseButtonRect.Contains(new Vector2((point.x - x) / scale, (Screen.height - point.y - y) / scale));
         }
 
         private void HandleBack()
         {
-            if (screen == ScreenState.Playing)
+            if (screen == RelayScreen.Playing)
             {
                 RecordScore();
                 SaveBest();
                 player.SetGameplayActive(false);
-                screen = ScreenState.Paused;
+                screen = RelayScreen.Paused;
                 if (feedback != null) feedback.ResetFeedback();
                 BlockTransitionInput();
             }
-            else if (screen == ScreenState.Paused) ResumeRun();
-            else if (screen == ScreenState.Results) ShowTitle();
+            else if (screen == RelayScreen.Paused) ResumeRun();
+            else if (screen == RelayScreen.Results) ShowTitle();
             // At the title, leave exit/navigation to the hosting app. Never force Application.Quit.
         }
 
         private void ResumeRun()
         {
-            screen = ScreenState.Playing;
+            screen = RelayScreen.Playing;
             player.SetGameplayActive(true);
             BlockTransitionInput();
         }
@@ -304,7 +336,7 @@ namespace GravityRelay
             RecordScore();
             SaveBest();
             // The title already has a prepared course; reuse it to avoid duplicate generation on Start.
-            bool prepared = screen == ScreenState.Start && player.State == RelayState.Orbiting && player.Score == 0;
+            bool prepared = screen == RelayScreen.Start && player.State == RelayState.Orbiting && player.Score == 0;
             if (!prepared) player.Restart();
             bestAtRunStart = bestScore;
             newRecord = false;
@@ -312,7 +344,7 @@ namespace GravityRelay
             previousState = player.State;
             feedbackScore = player.Score;
             displayedScore = -1;
-            screen = ScreenState.Playing;
+            screen = RelayScreen.Playing;
             player.SetGameplayActive(true);
             BlockTransitionInput();
             RecordScore();
@@ -325,7 +357,7 @@ namespace GravityRelay
             SaveBest();
             player.SetGameplayActive(false);
             player.Restart();
-            screen = ScreenState.Start;
+            screen = RelayScreen.Start;
             landedAt = diedAt = launchedAt = -100f;
             previousState = player.State;
             feedbackScore = 0;
@@ -367,14 +399,14 @@ namespace GravityRelay
         {
             if (!initialized) return;
             if (paused) { RecordScore(); SaveBest(); }
-            else if (screen == ScreenState.Playing) BlockTransitionInput();
+            else if (screen == RelayScreen.Playing) BlockTransitionInput();
         }
 
         private void OnApplicationFocus(bool focused)
         {
             if (!initialized) return;
             if (!focused) { RecordScore(); SaveBest(); }
-            else if (screen == ScreenState.Playing) BlockTransitionInput();
+            else if (screen == RelayScreen.Playing) BlockTransitionInput();
         }
 
         private void OnApplicationQuit()
@@ -405,7 +437,7 @@ namespace GravityRelay
             if (launchArrow == null)
                 return;
 
-            if (feedback != null) feedback.SetPlaying(screen == ScreenState.Playing);
+            if (feedback != null) feedback.SetPlaying(screen == RelayScreen.Playing);
             bool stateChanged = previousState != player.State;
             bool restarted = player.Score < feedbackScore ||
                 (previousState == RelayState.Dead && player.State == RelayState.Orbiting);
@@ -455,7 +487,7 @@ namespace GravityRelay
                 mascot.transform.localScale = mascotBaseScale * (1f + 0.25f * impulse);
             }
 
-            launchArrow.enabled = screen == ScreenState.Playing && player.CanLaunch && !inputBlocked;
+            launchArrow.enabled = screen == RelayScreen.Playing && player.CanLaunch && !inputBlocked;
             if (launchArrow.enabled)
             {
                 Vector2 direction = player.LaunchDirection;
@@ -474,7 +506,7 @@ namespace GravityRelay
                 launchArrow.SetPosition(4, tip - direction * head - normal * head * 0.6f);
             }
 
-            landingPulse.enabled = landed && screen == ScreenState.Playing;
+            landingPulse.enabled = landed && screen == RelayScreen.Playing;
             if (landed)
             {
                 float progress = Mathf.Clamp01((Time.time - landedAt) / feedbackDuration);
@@ -490,136 +522,20 @@ namespace GravityRelay
             }
 
             targetMarker.transform.position = player.TargetPlanet.transform.position;
-            targetMarker.enabled = screen == ScreenState.Playing;
+            targetMarker.enabled = screen == RelayScreen.Playing;
             float diameter = player.CaptureRadius(player.TargetPlanet) * 2f;
             Vector2 spriteSize = targetMarker.sprite.bounds.size;
             targetMarker.transform.localScale = new Vector3(diameter / spriteSize.x, diameter / spriteSize.y, 1f);
+            if (canvasView != null)
+            {
+                canvasView.Show(screen);
+                canvasView.SetControlsEnabled(!inputBlocked);
+                float pop = 1f + Mathf.Clamp01(1f - (Time.time - landedAt) / 0.18f) * 0.2f;
+                canvasView.SetValues(scoreText, bestText, comboText, resultScoreText, resultComboText,
+                    FailureMessage(), newRecord, player.Combo / (float)Mathf.Max(1, comboFeedbackCap), pop);
+            }
             previousState = player.State;
             feedbackScore = player.Score;
-        }
-
-        private void OnGUI()
-        {
-            if (!initialized) return;
-            // IMGUI buttons must not activate from focused Space/Enter controls.
-            if (Event.current.isKey) Event.current.Use();
-            GUIUtility.keyboardControl = 0;
-            if (titleStyle == null)
-            {
-                titleStyle = new GUIStyle(GUI.skin.label) { font = emphasisFont, fontSize = 28, alignment = TextAnchor.MiddleCenter };
-                textStyle = new GUIStyle(GUI.skin.label) { font = uiFont, fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-                scoreStyle = new GUIStyle(titleStyle) { fontSize = 56 };
-                hudScoreStyle = new GUIStyle(titleStyle) { fontSize = 36, alignment = TextAnchor.MiddleLeft };
-                hudBestStyle = new GUIStyle(textStyle) { font = emphasisFont, fontSize = 18,
-                    alignment = TextAnchor.MiddleRight, wordWrap = false };
-                comboStyle = new GUIStyle(titleStyle) { fontSize = 20, alignment = TextAnchor.MiddleRight };
-                hudButtonStyle = new GUIStyle(GUI.skin.button) { font = emphasisFont, fontSize = 16,
-                    alignment = TextAnchor.MiddleCenter };
-                hudScoreStyle.normal.textColor = Color.white;
-                hudBestStyle.normal.textColor = Color.white;
-                comboStyle.normal.textColor = Color.white;
-                buttonStyle = new GUIStyle(GUI.skin.button) { font = emphasisFont, fontSize = 22,
-                    alignment = TextAnchor.MiddleCenter, border = new RectOffset(0, 0, 0, 0) };
-                foreach (GUIStyleState state in new[] { buttonStyle.normal, buttonStyle.hover,
-                    buttonStyle.active, buttonStyle.focused })
-                {
-                    state.background = Texture2D.whiteTexture;
-                    state.textColor = Color.white;
-                }
-                hudButtonStyle = new GUIStyle(buttonStyle) { fontSize = 16, wordWrap = true };
-            }
-            Rect pixels = playCamera.pixelRect;
-            if (pixels.width <= 0f) return;
-            Matrix4x4 original = GUI.matrix;
-            Color originalColor = GUI.color;
-            Color originalBackground = GUI.backgroundColor;
-            bool originalEnabled = GUI.enabled;
-            Rect safe = Screen.safeArea;
-            float left = Mathf.Max(pixels.xMin, safe.xMin);
-            float bottom = Mathf.Max(pixels.yMin, safe.yMin);
-            float right = Mathf.Min(pixels.xMax, safe.xMax);
-            float top = Mathf.Min(pixels.yMax, safe.yMax);
-            if (right <= left || top <= bottom) return;
-            float scale = Mathf.Min((right - left) / 450f, (top - bottom) / 800f);
-            float originX = left + (right - left - 450f * scale) * 0.5f;
-            float originY = Screen.height - top + (top - bottom - 800f * scale) * 0.5f;
-            GUI.matrix = Matrix4x4.TRS(new Vector3(originX, originY, 0f),
-                Quaternion.identity, new Vector3(scale, scale, 1f));
-            try
-            {
-                GUI.enabled = originalEnabled && !inputBlocked;
-                if (screen == ScreenState.Playing) DrawHud();
-                else
-                {
-                    DrawPanel(new Rect(0, 0, 450, 800), new Color(0.035f, 0.025f, 0.09f, 0.72f));
-                    GUI.enabled = originalEnabled && !inputBlocked;
-                    if (screen == ScreenState.Start) DrawStartScreen();
-                    else if (screen == ScreenState.Paused) DrawPauseScreen();
-                    else DrawResultsScreen();
-                }
-            }
-            finally
-            {
-                GUI.matrix = original;
-                GUI.color = originalColor;
-                GUI.backgroundColor = originalBackground;
-                GUI.enabled = originalEnabled;
-            }
-        }
-
-        private static void DrawPanel(Rect rect, Color tint)
-        {
-            GUI.color = tint;
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = Color.white;
-        }
-
-        private bool PrimaryButton(Rect rect, string label)
-        {
-            Color previous = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.48f, 0.29f, 0.78f);
-            bool clicked = GUI.Button(rect, label, buttonStyle);
-            GUI.backgroundColor = previous;
-            return clicked;
-        }
-
-        private bool SecondaryButton(Rect rect, string label)
-        {
-            Color previous = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.18f, 0.12f, 0.28f);
-            bool clicked = GUI.Button(rect, label, buttonStyle);
-            GUI.backgroundColor = previous;
-            return clicked;
-        }
-
-        private void DrawStartScreen()
-        {
-            GUI.color = new Color(0.88f, 0.81f, 1f);
-            GUI.Label(new Rect(25, 210, 400, 50), "GRAVITY RELAY", titleStyle);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(45, 290, 360, 100),
-                "자동으로 공전합니다\n화면 어디든 톡 눌러 발사하세요\n보라색 고리 안으로 착륙하세요", textStyle);
-            GUI.color = new Color(0.75f, 0.65f, 0.91f);
-            GUI.Label(new Rect(25, 430, 400, 30), bestText, textStyle);
-            GUI.color = Color.white;
-            if (PrimaryButton(new Rect(40, 624, 370, 72), "시작하기")) StartRun();
-            GUI.Label(new Rect(45, 718, 360, 28), "터치 · 클릭으로 조작", textStyle);
-        }
-
-        private void DrawResultsScreen()
-        {
-            GUI.color = new Color(0.88f, 0.81f, 1f);
-            GUI.Label(new Rect(25, 190, 400, 45), "이번 비행 완료", titleStyle);
-            GUI.color = new Color(0.75f, 0.65f, 0.91f);
-            GUI.Label(new Rect(40, 250, 370, 45), FailureMessage(), textStyle);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(25, 320, 400, 26), "이번 점수", textStyle);
-            GUI.Label(new Rect(25, 356, 400, 80), resultScoreText, scoreStyle);
-            GUI.Label(new Rect(25, 466, 400, 30), bestText, textStyle);
-            GUI.Label(new Rect(25, 506, 400, 30), resultComboText, textStyle);
-            if (newRecord) GUI.Label(new Rect(25, 546, 400, 30), "새로운 최고 기록!", textStyle);
-            if (PrimaryButton(new Rect(40, 610, 370, 72), "바로 다시하기")) StartRun();
-            if (SecondaryButton(new Rect(95, 702, 260, 52), "시작 화면")) ShowTitle();
         }
 
         private string FailureMessage()
@@ -633,32 +549,5 @@ namespace GravityRelay
             }
         }
 
-        private void DrawPauseScreen()
-        {
-            GUI.color = Color.white;
-            GUI.Label(new Rect(25, 260, 400, 45), "잠시 쉬어가기", titleStyle);
-            GUI.Label(new Rect(25, 330, 400, 35), "다시 누르면 비행을 이어갑니다", textStyle);
-            if (PrimaryButton(new Rect(40, 610, 370, 72), "계속하기")) ResumeRun();
-            if (SecondaryButton(new Rect(95, 702, 260, 52), "시작 화면")) ShowTitle();
-        }
-
-        private void DrawHud()
-        {
-            // Opaque backing and a lavender border isolate the HUD from even the brightest nebula.
-            DrawPanel(new Rect(18, 708, 414, 80), new Color(0.62f, 0.39f, 0.9f, 1f));
-            DrawPanel(new Rect(20, 710, 410, 76), new Color(0.025f, 0.015f, 0.055f, 1f));
-            GUI.color = Color.white;
-            hudScoreStyle.fontSize = scoreText != null && scoreText.Length > 4
-                ? Mathf.Max(20, 36 - (scoreText.Length - 4) * 3) : 36;
-            GUI.Label(new Rect(32, 718, 112, 54), scoreText, hudScoreStyle);
-            GUI.Label(new Rect(151, 713, 207, 28), bestText, hudBestStyle);
-            float pop = 1f + Mathf.Clamp01(1f - (Time.time - landedAt) / 0.18f) * 0.2f;
-            comboStyle.fontSize = Mathf.RoundToInt(Mathf.Lerp(20f, 27f,
-                Mathf.Clamp01(player.Combo / (float)Mathf.Max(1, comboFeedbackCap))) * pop);
-            GUI.color = new Color(0.89f, 0.77f, 1f);
-            GUI.Label(new Rect(148, 742, 210, 40), comboText, comboStyle);
-            GUI.color = Color.white;
-            if (GUI.Button(PauseButtonRect, "일시\n정지", hudButtonStyle)) HandleBack();
-        }
     }
 }

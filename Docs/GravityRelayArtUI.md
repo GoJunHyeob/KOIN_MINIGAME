@@ -40,3 +40,5 @@ Inspector: Relay Input and HUD > Relay Presentation > Space Background / Backgro
 
 
 2026-10-31 배경 씬 연결 수정: 기존 방식은 Start에서만 배경 오브젝트를 생성하므로 편집 중 씬에 표시되지 않았다. GravityRelay 씬에 Space Background 루트와 3개 SpriteRenderer 타일을 직접 저장하고 이미지·카메라·Presentation 참조를 연결했다. RelaySpaceBackground는 ExecuteAlways로 편집 중에도 기존 타일의 표시와 위치를 갱신하며 편집 중 오브젝트를 생성하지 않는다. Play 시작 시에는 저장된 배경을 재사용해 중복 생성을 피한다. 사용자의 기존 씬 변경은 보존하고 배경 추가 부분만 커밋한다. Play·테스트·컴파일·에디터 화면 검사는 실행하지 않았다.
+
+2026-10-31 화면 대응: 정식 Canvas/Text/Image/Button으로 전환했고 Pretendard와 보라색 테마를 유지했습니다. Screen.safeArea 안의 공통 9:16 카메라 영역에 UI를 맞추고 바깥 여백에는 같은 우주 이미지를 잘라 표시합니다. UI는 Gravity Relay Canvas 하위에서 편집하며 재사용 프리팹은 Assets/GravityRelay/UI/Resources/GravityRelayCanvas.prefab입니다. 상세 문서는 Docs/GravityRelayScreenLayout.md입니다.
