@@ -38,12 +38,14 @@ namespace GravityRelay
         private float stateTime;
         private float orbitDirection = 1f;
         private bool launchQueued;
+        private bool gameplayActive;
         private Rect flightBounds;
         public RelayState State { get; private set; }
         public int Score { get; private set; }
         public int CurrentIndex { get; private set; }
         public int TargetIndex => endlessCourse != null ? Score + 1 : (CurrentIndex + 1) % planets.Length;
-        public bool CanLaunch => State == RelayState.Orbiting && (endlessCourse == null || endlessCourse.ReadyForLaunch);
+        public bool CanLaunch => gameplayActive && State == RelayState.Orbiting &&
+            (endlessCourse == null || endlessCourse.ReadyForLaunch);
         public RelayEndlessCourse EndlessCourse => endlessCourse;
         public float FlightRemaining => Mathf.Max(0f, flightTimeLimit - stateTime);
         public string FailureReason { get; private set; }
@@ -62,6 +64,12 @@ namespace GravityRelay
         public RelayPlanet TargetPlanet => endlessCourse != null ? endlessCourse.TargetPlanet : planets[TargetIndex];
 
         public void SetEndlessCourse(RelayEndlessCourse course) => endlessCourse = course;
+
+        public void SetGameplayActive(bool active)
+        {
+            gameplayActive = active && State != RelayState.Dead;
+            if (!gameplayActive) launchQueued = false;
+        }
 
         public void Configure(RelayPlanet[] route, Camera camera)
         {
@@ -112,7 +120,7 @@ namespace GravityRelay
         // Fixed-step gameplay simulation shared with procedural route selection.
         private void Simulate(float deltaTime)
         {
-            if (State == RelayState.Dead || deltaTime <= 0f)
+            if (!gameplayActive || State == RelayState.Dead || deltaTime <= 0f)
                 return;
 
             if (endlessCourse != null)
@@ -285,6 +293,7 @@ namespace GravityRelay
 
         private void Die(string reason)
         {
+            gameplayActive = false;
             State = RelayState.Dead;
             FailureReason = reason;
             velocity = Vector2.zero;
