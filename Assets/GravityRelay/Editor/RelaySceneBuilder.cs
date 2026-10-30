@@ -39,11 +39,11 @@ namespace GravityRelay.Editor
             camera.orthographicSize = 8;
             camera.aspect = 9f / 16f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.025f, 0.04f, 0.09f);
+            camera.backgroundColor = new Color(0.035f, 0.025f, 0.09f);
 
             var route = new RelayPlanet[3];
             Vector2[] centers = { new Vector2(-1, -3.2f), new Vector2(0.6f, 1.2f), new Vector2(-1.2f, 5.6f) };
-            Color[] colors = { new Color(0.18f, 0.68f, 0.77f), new Color(0.51f, 0.38f, 0.83f), new Color(0.91f, 0.43f, 0.38f) };
+            Color[] colors = { new Color(0.74f, 0.64f, 0.91f), new Color(0.74f, 0.64f, 0.91f), new Color(0.74f, 0.64f, 0.91f) };
             var planetRoot = new GameObject("Planets (route 1 > 2 > 3 > 1)");
             for (int i = 0; i < route.Length; i++)
             {
@@ -53,26 +53,29 @@ namespace GravityRelay.Editor
                 route[i] = planetObject.GetComponent<RelayPlanet>();
                 MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1.15f, 0);
                 MakeSprite("Orbit guide", planetObject.transform, ring, material,
-                    new Color(0.5f, 0.8f, 1f, 0.22f), Vector2.zero, 3.75f, -1);
+                    new Color(0.62f, 0.37f, 0.96f, 0.48f), Vector2.zero, 3.75f, -1);
                 MakeSprite("Crater", planetObject.transform, disc, material,
-                    colors[i] * 0.75f, new Vector2(-0.125f, 0.09375f), 0.2375f, 1);
+                    new Color(0.48f, 0.35f, 0.67f), new Vector2(-0.125f, 0.09375f), 0.2375f, 1);
             }
             SpriteRenderer marker = MakeSprite("Next target halo", null, ring, material,
-                new Color(1f, 0.82f, 0.3f), centers[1], 4.35f, 2);
+                new Color(0.66f, 0.42f, 1f, 0.65f), centers[1], 4.35f, 2);
             var playerObject = new GameObject("BCSD Player", typeof(RelayPlayer));
             RelayPlayer player = playerObject.GetComponent<RelayPlayer>();
             player.Configure(route, camera);
             playerObject.transform.position = centers[0] + Vector2.down * 1.875f;
             SpriteRenderer body = MakeSprite("BCSD Placeholder (replace via Presentation)", playerObject.transform,
-                disc, material, new Color(1f, 0.89f, 0.57f), Vector2.zero, 0.725f, 10);
+                disc, material, new Color(0.055f, 0.04f, 0.085f), Vector2.zero, 0.725f, 10);
             // Decorations are normalized to the body's local scale.
-            MakeSprite("Eye L", body.transform, disc, material, new Color(0.05f, 0.09f, 0.16f),
+            MakeSprite("Eye L", body.transform, disc, material, new Color(0.78f, 0.63f, 1f),
                 new Vector2(-0.16f, 0.1f), 0.14f, 11);
-            MakeSprite("Eye R", body.transform, disc, material, new Color(0.05f, 0.09f, 0.16f),
+            MakeSprite("Eye R", body.transform, disc, material, new Color(0.78f, 0.63f, 1f),
                 new Vector2(0.16f, 0.1f), 0.14f, 11);
             var hud = new GameObject("Relay Input and HUD", typeof(RelayPresentation));
             hud.GetComponent<RelayPresentation>().Configure(player, camera, marker, body,
                 AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/Settings/InputSystem_Actions.inputactions"));
+            hud.GetComponent<RelayPresentation>().ConfigureTypography(
+                AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-Regular.otf"),
+                AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-SemiBold.otf"));
             RelaySceneSetup.WireVisualsInCurrentScene();
             RelayEndlessSetup.EnableInCurrentScene();
             EditorSceneManager.MarkSceneDirty(scene);

@@ -44,3 +44,6 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 크기 추가 조정: 행성 반경 0.5 → 0.575(15% 확대), BCSD 표시 Scale 0.63 → 0.725(약 15% 확대). 공전 여유 1.3을 유지하므로 실제 공전 반경은 1.875이며 가이드·포획 반경에도 동일하게 반영된다. 씬의 세 행성 템플릿과 생성 기본값을 함께 변경했다. 실제 공전 중에만 가이드를 보이는 정책은 유지한다. 테스트·Play·컴파일 검사는 실행하지 않았다.
+
+
+2026-10-31 art/UI: black-purple BCSD placeholder, lavender planets, purple orbit/capture rings and deep purple navy background. Bottom-only minimal score HUD, safe-area fitting, thumb-reachable menu buttons, full-screen gameplay touch, existing UI/Cancel-driven pause/resume/back navigation. Bundled official Pretendard v1.3.9 Regular/SemiBold OTF fonts + SIL OFL, direct serialized references. See Docs/GravityRelayArtUI.md. No tests, Play, compilation or visual validation executed.

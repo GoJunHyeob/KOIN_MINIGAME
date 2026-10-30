@@ -5,7 +5,7 @@ namespace GravityRelay
 {
     public sealed class RelayPresentation : MonoBehaviour
     {
-        private enum ScreenState { Start, Playing, Results }
+        private enum ScreenState { Start, Playing, Paused, Results }
         private const string BestScoreKey = "GravityRelay.BestScore.v1";
         private ScreenState screen = ScreenState.Start;
         private bool initialized;
@@ -25,6 +25,9 @@ namespace GravityRelay
         [SerializeField] private InputActionAsset inputActions;
         [SerializeField] private Sprite bcsdSprite;
         [SerializeField] private SpriteRenderer mascot;
+        [Header("Typography")]
+        [SerializeField] private Font uiFont;
+        [SerializeField] private Font emphasisFont;
         [Header("Launch and landing feedback")]
         [SerializeField, Min(0.1f)] private float arrowLength = 0.9f;
         [SerializeField, Min(0.01f)] private float arrowWidth = 0.055f;
@@ -43,12 +46,9 @@ namespace GravityRelay
         private Vector2 launchVisualDirection;
         private Vector2 landingCenter;
         private float landingRadius;
-        private string targetText;
-        private string statusText;
-        private int displayedTarget = -1;
-        private float nextTimerRefresh;
         private InputActionAsset ownedActions;
         private InputAction launchAction;
+        private InputAction cancelAction;
         private GUIStyle titleStyle, textStyle, scoreStyle;
         private string scoreText;
         private int displayedScore = -1;
@@ -61,6 +61,13 @@ namespace GravityRelay
             targetMarker = marker;
             mascot = character;
             inputActions = actions;
+        }
+
+        public void ConfigureTypography(Font regular, Font emphasis)
+        {
+            uiFont = regular;
+            emphasisFont = emphasis;
+            titleStyle = null;
         }
 
         private void OnEnable()
@@ -82,6 +89,8 @@ namespace GravityRelay
                 launchAction.AddBinding("<Touchscreen>/primaryTouch/press");
             launchAction.AddBinding("<Keyboard>/space");
             launchAction.Enable();
+            cancelAction = ownedActions.FindAction("UI/Cancel", true);
+            cancelAction.Enable();
             if (initialized)
             {
                 player.SetGameplayActive(screen == ScreenState.Playing);
@@ -98,6 +107,7 @@ namespace GravityRelay
                 player.SetGameplayActive(false);
             }
             launchAction?.Disable();
+            cancelAction?.Disable();
             if (ownedActions != null)
                 Destroy(ownedActions);
             if (launchArrow != null) launchArrow.enabled = false;
@@ -115,7 +125,7 @@ namespace GravityRelay
         private void Start()
         {
             bestScore = Mathf.Max(0, PlayerPrefs.GetInt(BestScoreKey, 0));
-            bestText = "BEST  " + bestScore.ToString("00");
+            bestText = "최고  " + bestScore.ToString("00");
             player.SetGameplayActive(false);
             initialized = true;
             BlockTransitionInput();
@@ -164,9 +174,18 @@ namespace GravityRelay
                     inputBlocked = false;
                 return;
             }
+            if (cancelAction.WasPressedThisFrame())
+            {
+                HandleBack();
+                return;
+            }
             if (screen != ScreenState.Playing)
             {
-                if (ConfirmPressed()) StartRun();
+                if (ConfirmPressed())
+                {
+                    if (screen == ScreenState.Paused) ResumeRun();
+                    else StartRun();
+                }
                 return;
             }
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
@@ -187,6 +206,7 @@ namespace GravityRelay
         private bool AnyPrimaryInputHeld()
         {
             if (launchAction != null && launchAction.IsPressed()) return true;
+            if (cancelAction != null && cancelAction.IsPressed()) return true;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && (keyboard.enterKey.isPressed || keyboard.numpadEnterKey.isPressed ||
                 keyboard.spaceKey.isPressed || keyboard.rKey.isPressed)) return true;
@@ -214,8 +234,30 @@ namespace GravityRelay
             InputDevice device = launchAction.activeControl?.device;
             if (device is Mouse mouse) return playCamera.pixelRect.Contains(mouse.position.ReadValue());
             if (device is Touchscreen touchscreen)
-                return playCamera.pixelRect.Contains(touchscreen.primaryTouch.position.ReadValue());
+                return new Rect(0f, 0f, Screen.width, Screen.height).Contains(touchscreen.primaryTouch.position.ReadValue());
             return true;
+        }
+
+        private void HandleBack()
+        {
+            if (screen == ScreenState.Playing)
+            {
+                RecordScore();
+                SaveBest();
+                player.SetGameplayActive(false);
+                screen = ScreenState.Paused;
+                BlockTransitionInput();
+            }
+            else if (screen == ScreenState.Paused) ResumeRun();
+            else if (screen == ScreenState.Results) ShowTitle();
+            // At the title, leave exit/navigation to the hosting app. Never force Application.Quit.
+        }
+
+        private void ResumeRun()
+        {
+            screen = ScreenState.Playing;
+            player.SetGameplayActive(true);
+            BlockTransitionInput();
         }
 
         private void StartRun()
@@ -231,8 +273,6 @@ namespace GravityRelay
             previousState = player.State;
             feedbackScore = player.Score;
             displayedScore = -1;
-            displayedTarget = -1;
-            statusText = null;
             screen = ScreenState.Playing;
             player.SetGameplayActive(true);
             BlockTransitionInput();
@@ -250,7 +290,6 @@ namespace GravityRelay
             previousState = player.State;
             feedbackScore = 0;
             displayedScore = -1;
-            displayedTarget = -1;
             BlockTransitionInput();
             RecordScore();
         }
@@ -266,7 +305,7 @@ namespace GravityRelay
             if (player.Score > bestScore)
             {
                 bestScore = player.Score;
-                bestText = "BEST  " + bestScore.ToString("00");
+                bestText = "최고  " + bestScore.ToString("00");
                 PlayerPrefs.SetInt(BestScoreKey, bestScore);
                 bestDirty = true;
             }
@@ -327,7 +366,6 @@ namespace GravityRelay
             if (restarted)
             {
                 landedAt = diedAt = launchedAt = -100f;
-                statusText = null;
             }
             if (stateChanged && player.State == RelayState.Flying)
             {
@@ -344,9 +382,9 @@ namespace GravityRelay
                 diedAt = Time.time;
 
             bool landed = Time.time - landedAt < feedbackDuration;
-            Color success = new Color(0.35f, 1f, 0.65f);
-            Color failure = new Color(1f, 0.28f, 0.32f);
-            mascot.color = player.State == RelayState.Dead ? failure : landed ? success : mascotBaseColor;
+            Color success = new Color(0.72f, 0.53f, 1f);
+            Color failure = new Color(0.95f, 0.38f, 0.65f);
+            mascot.color = player.State == RelayState.Dead ? Color.Lerp(mascotBaseColor, failure, 0.45f) : mascotBaseColor;
             float flash = player.State == RelayState.Dead
                 ? 0.35f * Mathf.Clamp01(1f - (Time.time - diedAt) / feedbackDuration) : 0f;
             playCamera.backgroundColor = Color.Lerp(backgroundBaseColor, failure, flash);
@@ -379,7 +417,7 @@ namespace GravityRelay
                 Vector2 tip = start + direction * arrowLength;
                 float head = Mathf.Min(0.22f, arrowLength * 0.35f);
                 launchArrow.startWidth = launchArrow.endWidth = arrowWidth;
-                launchArrow.startColor = launchArrow.endColor = new Color(0.4f, 0.94f, 1f);
+                launchArrow.startColor = launchArrow.endColor = new Color(0.78f, 0.66f, 1f);
                 launchArrow.SetPosition(0, start);
                 launchArrow.SetPosition(1, tip);
                 launchArrow.SetPosition(2, tip - direction * head + normal * head * 0.6f);
@@ -406,29 +444,6 @@ namespace GravityRelay
             float diameter = player.CaptureRadius(player.TargetPlanet) * 2f;
             Vector2 spriteSize = targetMarker.sprite.bounds.size;
             targetMarker.transform.localScale = new Vector3(diameter / spriteSize.x, diameter / spriteSize.y, 1f);
-            if (displayedTarget != player.TargetIndex)
-            {
-                displayedTarget = player.TargetIndex;
-                targetText = "BCSD  /  TARGET " + (displayedTarget + 1);
-            }
-            if (player.State == RelayState.Dead)
-            {
-                if (stateChanged || statusText == null)
-                    statusText = player.FailureReason;
-            }
-            else if (landed)
-                statusText = "LANDED!  +1";
-            else if (player.State == RelayState.Flying)
-            {
-                if (stateChanged || Time.time >= nextTimerRefresh)
-                {
-                    statusText = "IN FLIGHT  " + player.FlightRemaining.ToString("0.0") + "s";
-                    nextTimerRefresh = Time.time + 0.1f;
-                }
-            }
-            else
-                statusText = player.State == RelayState.Capturing ? "CAPTURE!"
-                    : !player.CanLaunch ? "FRAMING NEXT ORBIT..." : "TAP / CLICK / SPACE TO LAUNCH";
             previousState = player.State;
             feedbackScore = player.Score;
         }
@@ -438,10 +453,17 @@ namespace GravityRelay
             if (!initialized) return;
             if (titleStyle == null)
             {
-                titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 25, alignment = TextAnchor.MiddleCenter };
-                textStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-                scoreStyle = new GUIStyle(titleStyle) { fontSize = 52 };
-                buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = 24, fontStyle = FontStyle.Bold };
+                titleStyle = new GUIStyle(GUI.skin.label) { font = emphasisFont, fontSize = 28, alignment = TextAnchor.MiddleCenter };
+                textStyle = new GUIStyle(GUI.skin.label) { font = uiFont, fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true };
+                scoreStyle = new GUIStyle(titleStyle) { fontSize = 56 };
+                buttonStyle = new GUIStyle(GUI.skin.button) { font = emphasisFont, fontSize = 22,
+                    alignment = TextAnchor.MiddleCenter, border = new RectOffset(0, 0, 0, 0) };
+                foreach (GUIStyleState state in new[] { buttonStyle.normal, buttonStyle.hover,
+                    buttonStyle.active, buttonStyle.focused })
+                {
+                    state.background = Texture2D.whiteTexture;
+                    state.textColor = Color.white;
+                }
             }
             Rect pixels = playCamera.pixelRect;
             if (pixels.width <= 0f) return;
@@ -449,17 +471,26 @@ namespace GravityRelay
             Color originalColor = GUI.color;
             Color originalBackground = GUI.backgroundColor;
             bool originalEnabled = GUI.enabled;
-            float scale = pixels.width / 450f;
-            GUI.matrix = Matrix4x4.TRS(new Vector3(pixels.x, Screen.height - pixels.yMax, 0f),
+            Rect safe = Screen.safeArea;
+            float left = Mathf.Max(pixels.xMin, safe.xMin);
+            float bottom = Mathf.Max(pixels.yMin, safe.yMin);
+            float right = Mathf.Min(pixels.xMax, safe.xMax);
+            float top = Mathf.Min(pixels.yMax, safe.yMax);
+            if (right <= left || top <= bottom) return;
+            float scale = Mathf.Min((right - left) / 450f, (top - bottom) / 800f);
+            float originX = left + (right - left - 450f * scale) * 0.5f;
+            float originY = Screen.height - top + (top - bottom - 800f * scale) * 0.5f;
+            GUI.matrix = Matrix4x4.TRS(new Vector3(originX, originY, 0f),
                 Quaternion.identity, new Vector3(scale, scale, 1f));
             try
             {
-                if (screen == ScreenState.Playing) DrawHud(pixels, scale);
+                if (screen == ScreenState.Playing) DrawHud();
                 else
                 {
-                    DrawPanel(new Rect(0, 0, 450, 800), new Color(0f, 0.01f, 0.03f, 0.55f));
+                    DrawPanel(new Rect(0, 0, 450, 800), new Color(0.035f, 0.025f, 0.09f, 0.72f));
                     GUI.enabled = originalEnabled && !inputBlocked;
                     if (screen == ScreenState.Start) DrawStartScreen();
+                    else if (screen == ScreenState.Paused) DrawPauseScreen();
                     else DrawResultsScreen();
                 }
             }
@@ -482,7 +513,16 @@ namespace GravityRelay
         private bool PrimaryButton(Rect rect, string label)
         {
             Color previous = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.2f, 0.75f, 0.85f);
+            GUI.backgroundColor = new Color(0.48f, 0.29f, 0.78f);
+            bool clicked = GUI.Button(rect, label, buttonStyle);
+            GUI.backgroundColor = previous;
+            return clicked;
+        }
+
+        private bool SecondaryButton(Rect rect, string label)
+        {
+            Color previous = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.18f, 0.12f, 0.28f);
             bool clicked = GUI.Button(rect, label, buttonStyle);
             GUI.backgroundColor = previous;
             return clicked;
@@ -490,56 +530,67 @@ namespace GravityRelay
 
         private void DrawStartScreen()
         {
-            DrawPanel(new Rect(25, 180, 400, 430), new Color(0.02f, 0.04f, 0.09f, 0.96f));
-            GUI.color = new Color(0.86f, 0.96f, 1f);
-            GUI.Label(new Rect(25, 210, 400, 45), "GRAVITY RELAY", titleStyle);
-            GUI.color = new Color(1f, 0.85f, 0.45f);
-            GUI.Label(new Rect(25, 265, 400, 30), bestText, textStyle);
+            GUI.color = new Color(0.88f, 0.81f, 1f);
+            GUI.Label(new Rect(25, 210, 400, 50), "GRAVITY RELAY", titleStyle);
             GUI.color = Color.white;
-            GUI.Label(new Rect(45, 320, 360, 100),
-                "ORBIT AUTOMATICALLY\nTAP / CLICK / SPACE TO LAUNCH\nLAND INSIDE THE GOLD RING", textStyle);
-            if (PrimaryButton(new Rect(70, 465, 310, 64), "START")) StartRun();
-            GUI.Label(new Rect(45, 550, 360, 30), "ENTER / SPACE TO START", textStyle);
+            GUI.Label(new Rect(45, 290, 360, 100),
+                "자동으로 공전합니다\n화면 어디든 톡 눌러 발사하세요\n보라색 고리 안으로 착륙하세요", textStyle);
+            GUI.color = new Color(0.75f, 0.65f, 0.91f);
+            GUI.Label(new Rect(25, 430, 400, 30), bestText, textStyle);
+            GUI.color = Color.white;
+            if (PrimaryButton(new Rect(40, 624, 370, 72), "시작하기")) StartRun();
+            GUI.Label(new Rect(45, 718, 360, 28), "터치 · 클릭 · Space", textStyle);
         }
 
         private void DrawResultsScreen()
         {
-            DrawPanel(new Rect(25, 150, 400, 500), new Color(0.03f, 0.035f, 0.08f, 0.97f));
-            GUI.color = new Color(1f, 0.55f, 0.55f);
-            GUI.Label(new Rect(25, 175, 400, 45), "RUN OVER", titleStyle);
-            GUI.Label(new Rect(40, 235, 370, 30), player.FailureReason, textStyle);
+            GUI.color = new Color(0.88f, 0.81f, 1f);
+            GUI.Label(new Rect(25, 190, 400, 45), "이번 비행 완료", titleStyle);
+            GUI.color = new Color(0.75f, 0.65f, 0.91f);
+            GUI.Label(new Rect(40, 250, 370, 45), FailureMessage(), textStyle);
             GUI.color = Color.white;
-            GUI.Label(new Rect(25, 275, 400, 25), "YOUR SCORE", textStyle);
-            GUI.Label(new Rect(25, 300, 400, 70), resultScoreText, scoreStyle);
-            GUI.color = new Color(1f, 0.85f, 0.45f);
-            GUI.Label(new Rect(25, 385, 400, 30), bestText, textStyle);
-            if (newRecord) GUI.Label(new Rect(25, 420, 400, 25), "NEW BEST!", textStyle);
-            GUI.color = Color.white;
-            if (PrimaryButton(new Rect(70, 470, 310, 64), "RESTART")) StartRun();
-            if (GUI.Button(new Rect(70, 546, 310, 44), "TITLE", buttonStyle)) ShowTitle();
-            GUI.Label(new Rect(40, 610, 370, 25), "R / ENTER / SPACE TO RESTART", textStyle);
+            GUI.Label(new Rect(25, 320, 400, 26), "이번 점수", textStyle);
+            GUI.Label(new Rect(25, 356, 400, 80), resultScoreText, scoreStyle);
+            GUI.Label(new Rect(25, 466, 400, 30), bestText, textStyle);
+            if (newRecord) GUI.Label(new Rect(25, 510, 400, 30), "새로운 최고 기록!", textStyle);
+            if (PrimaryButton(new Rect(40, 610, 370, 72), "바로 다시하기")) StartRun();
+            if (SecondaryButton(new Rect(95, 702, 260, 52), "시작 화면")) ShowTitle();
         }
 
-        private void DrawHud(Rect pixels, float scale)
+        private string FailureMessage()
         {
-            // The continuous map now passes behind the HUD; preserve score contrast.
-            GUI.color = new Color(0.015f, 0.025f, 0.055f, 0.85f);
-            GUI.DrawTexture(new Rect(0f, 0f, 450f, 165f), Texture2D.whiteTexture);
-            GUI.color = new Color(0.86f, 0.96f, 1f);
-            GUI.Label(new Rect(0, 12, 450, 35), "GRAVITY RELAY", titleStyle);
-            GUI.Label(new Rect(0, 48, 450, 62), scoreText, scoreStyle);
-            GUI.color = new Color(1f, 0.85f, 0.45f);
-            GUI.Label(new Rect(0, 110, 450, 24), bestText, textStyle);
+            switch (player.FailureReason)
+            {
+                case "FLIGHT TIME EXPIRED": return "다음 행성까지 시간이 부족했어요";
+                case "OUT OF ORBIT": return "우주 바깥으로 벗어났어요";
+                case "NO REACHABLE ROUTE": return "행성 경로를 준비하지 못했어요";
+                default: return "다시 한 번 이어가 볼까요?";
+            }
+        }
+
+        private void DrawPauseScreen()
+        {
             GUI.color = Color.white;
-            GUI.Label(new Rect(0, 135, 450, 22), targetText, textStyle);
-            GUI.color = player.State == RelayState.Dead ? new Color(1f, 0.4f, 0.4f)
-                : Time.time - landedAt < feedbackDuration ? new Color(0.35f, 1f, 0.65f) : Color.white;
-            GUI.Label(new Rect(0, 690, 450, 60), statusText, textStyle);
+            GUI.Label(new Rect(25, 260, 400, 45), "잠시 쉬어가기", titleStyle);
+            GUI.Label(new Rect(25, 330, 400, 35), "다시 누르면 비행을 이어갑니다", textStyle);
+            if (PrimaryButton(new Rect(40, 610, 370, 72), "계속하기")) ResumeRun();
+            if (SecondaryButton(new Rect(95, 702, 260, 52), "시작 화면")) ShowTitle();
+        }
+
+        private void DrawHud()
+        {
+            // The next target is above the current orbit. Keep its approach clear with a small bottom HUD.
+            DrawPanel(new Rect(18, 732, 414, 56), new Color(0.055f, 0.035f, 0.12f, 0.72f));
             GUI.color = Color.white;
-            GUI.Label(new Rect(0, 755, 450, 25), "R RESTART  /  GOLD RING = LANDING ZONE", textStyle);
-            Vector3 label = playCamera.WorldToScreenPoint(player.transform.position);
-            GUI.Label(new Rect((label.x - pixels.x) / scale - 40,
-                (pixels.yMax - label.y) / scale + 16, 80, 24), "BCSD", textStyle);
+            GUI.Label(new Rect(25, 736, 125, 46), scoreText, titleStyle);
+            GUI.color = new Color(0.78f, 0.69f, 0.93f);
+            GUI.Label(new Rect(275, 744, 145, 30), bestText, textStyle);
+            if (Time.time - landedAt < feedbackDuration)
+            {
+                GUI.color = new Color(0.83f, 0.70f, 1f);
+                GUI.Label(new Rect(170, 744, 90, 30), "+1", textStyle);
+            }
+            GUI.color = Color.white;
         }
     }
 }
