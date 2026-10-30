@@ -934,7 +934,7 @@ MonoBehaviour:
   - {fileID: 2072075189}
   playCamera: {fileID: 1528330753}
   endlessCourse: {fileID: 1355171099}
-  orbitClearance: 1
+  orbitClearance: 1.3
   orbitDegreesPerSecond: 150
   launchSpeed: 15
   gravityStrength: 60
@@ -942,6 +942,7 @@ MonoBehaviour:
   maxAcceleration: 40
   captureMargin: 0.3
   captureDuration: 0.06
+  launchBufferSeconds: 0.35
   flightTimeLimit: 4
   screenExitMargin: 0.25
 --- !u!1 &1355171098
@@ -983,8 +984,8 @@ MonoBehaviour:
   startPosition: {x: -1, y: -3.2}
   poolSize: 12
   planetsAhead: 4
-  minVerticalGap: 4.2
-  maxVerticalGap: 5.4
+  minVerticalGap: 5.6
+  maxVerticalGap: 6.6
   horizontalLimit: 2.2
   minimumHorizontalStep: 1.2
   separationMargin: 0.15
@@ -992,23 +993,26 @@ MonoBehaviour:
   progressiveDifficulty: 1
   easyLandings: 3
   fullDifficultyScore: 15
-  earlyMinVerticalGap: 4.2
-  earlyMaxVerticalGap: 4.6
-  lateMinVerticalGap: 4.8
+  earlyMinVerticalGap: 5.6
+  earlyMaxVerticalGap: 5.9
+  lateMinVerticalGap: 6.1
   earlyHorizontalStep: 2.6
-  lateHorizontalStep: 4.2
-  tutorialWindow: 0.4
-  beginnerWindow: 0.3
-  normalWindow: 0.2
-  difficultWindow: 0.15
-  advancedWindow: 0.11
-  endlessWindow: 0.11
+  lateHorizontalStep: 3.6
+  tutorialWindow: 0.42
+  beginnerWindow: 0.36
+  normalWindow: 0.30
+  difficultWindow: 0.26
+  advancedWindow: 0.24
+  endlessWindow: 0.24
   tutorialCaptureAssist: 0.55
   beginnerCaptureAssist: 0.3
   normalCaptureAssist: 0.1
   maximumCaptureAssist: 0.8
-  cameraLookAhead: 3.2
-  cameraSharpness: 12
+  maximumRelayTurn: 60
+  directionPersistence: 0.85
+  preferQuickDeparture: 1
+  cameraLookAhead: 3.6
+  cameraSharpness: 28
   retireMargin: 1
 --- !u!4 &1355171100
 Transform:

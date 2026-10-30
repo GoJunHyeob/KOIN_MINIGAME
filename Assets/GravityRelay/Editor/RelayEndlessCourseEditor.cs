@@ -13,7 +13,7 @@ namespace GravityRelay.Editor
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("연속 발사 성공 구간과 배치", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("횟수는 다음 이동을 성공했을 때의 횟수입니다. 첫 3회는 쉬운 배치를 유지합니다. " +
-                "구간은 한 바퀴 안의 연속 입력 시간이며 비행 시간이 아닙니다. 이미 생성한 행성은 그대로 유지합니다.", MessageType.Info);
+                "구간은 한 바퀴 안의 연속 입력 시간이며 비행 시간이 아닙니다. 완만한 대각 흐름과 빠른 재출발을 우선합니다. 이미 보이는 행성은 옮기지 않습니다.", MessageType.Info);
             DrawStage(course, "튜토리얼 · 1회", 0);
             DrawStage(course, "초급 · 2~4회", 1);
             DrawStage(course, "보통 · 5~8회", 4);

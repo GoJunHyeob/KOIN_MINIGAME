@@ -17,9 +17,9 @@ namespace GravityRelay
         [SerializeField, Range(4, 6), Tooltip("항상 앞쪽에 미리 배치할 행성 수입니다.")]
         private int planetsAhead = 4;
         [SerializeField, Min(2.8f), Tooltip("전체 생성 높이 차의 하한입니다.")]
-        private float minVerticalGap = 4.2f;
+        private float minVerticalGap = 5.6f;
         [SerializeField, Min(2.8f), Tooltip("난이도가 올라가도 넘지 않는 높이 차 상한입니다.")]
-        private float maxVerticalGap = 5.4f;
+        private float maxVerticalGap = 6.6f;
         [SerializeField, Range(0f, 2.5f), Tooltip("모든 단계에서 유지되는 절대 좌우 생성 범위입니다.")]
         private float horizontalLimit = 2.2f;
         [SerializeField, Min(0f), Tooltip("수직으로 붙는 배치를 피하기 위한 최소 좌우 이동폭입니다.")]
@@ -32,29 +32,36 @@ namespace GravityRelay
         private int easyLandings = 3;
         [SerializeField, Min(1), Tooltip("이 점수부터는 생성 난이도를 더 높이지 않습니다.")]
         private int fullDifficultyScore = 15;
-        [SerializeField, Min(2.8f)] private float earlyMinVerticalGap = 4.2f;
-        [SerializeField, Min(2.8f)] private float earlyMaxVerticalGap = 4.6f;
-        [SerializeField, Min(2.8f)] private float lateMinVerticalGap = 4.8f;
+        [SerializeField, Min(2.8f)] private float earlyMinVerticalGap = 5.6f;
+        [SerializeField, Min(2.8f)] private float earlyMaxVerticalGap = 5.9f;
+        [SerializeField, Min(2.8f)] private float lateMinVerticalGap = 6.1f;
         [SerializeField, Min(0f), Tooltip("초반 목표와 현재 행성 사이 x 차이의 최대값입니다.")]
         private float earlyHorizontalStep = 2.6f;
         [SerializeField, Min(0f), Tooltip("후반 x 차이의 최대값. 절대 좌우 범위도 함께 적용됩니다.")]
-        private float lateHorizontalStep = 4.2f;
+        private float lateHorizontalStep = 3.6f;
         [Header("Minimum continuous launch window (seconds)")]
-        [SerializeField, Min(0.01f)] private float tutorialWindow = 0.40f;
-        [SerializeField, Min(0.01f)] private float beginnerWindow = 0.30f;
-        [SerializeField, Min(0.01f)] private float normalWindow = 0.20f;
-        [SerializeField, Min(0.01f)] private float difficultWindow = 0.15f;
-        [SerializeField, Min(0.01f)] private float advancedWindow = 0.11f;
-        [SerializeField, Min(0.01f)] private float endlessWindow = 0.11f;
+        [SerializeField, Min(0.01f)] private float tutorialWindow = 0.42f;
+        [SerializeField, Min(0.01f)] private float beginnerWindow = 0.36f;
+        [SerializeField, Min(0.01f)] private float normalWindow = 0.30f;
+        [SerializeField, Min(0.01f)] private float difficultWindow = 0.26f;
+        [SerializeField, Min(0.01f)] private float advancedWindow = 0.24f;
+        [SerializeField, Min(0.01f)] private float endlessWindow = 0.24f;
         [Header("Per-target capture assistance")]
         [SerializeField, Range(0f, 0.8f)] private float tutorialCaptureAssist = 0.55f;
         [SerializeField, Range(0f, 0.8f)] private float beginnerCaptureAssist = 0.30f;
         [SerializeField, Range(0f, 0.8f)] private float normalCaptureAssist = 0.10f;
         [SerializeField, Range(0f, 0.8f), Tooltip("구간 확보를 위한 목표별 추가 포획 여유의 상한입니다.")]
         private float maximumCaptureAssist = 0.8f;
+        [Header("Flowing relay placement")]
+        [SerializeField, Range(20f, 90f), Tooltip("이전 이동 방향과 다음 방향 사이 최대 각도. 급격한 지그재그를 줄입니다.")]
+        private float maximumRelayTurn = 60f;
+        [SerializeField, Range(0f, 1f), Tooltip("직전 좌우 흐름을 이어가는 후보를 우선할 확률입니다. 화면 끝에서는 안쪽으로 꺾습니다.")]
+        private float directionPersistence = 0.85f;
+        [SerializeField, Tooltip("착륙 시 다음 목표의 성공 구간에 더 빨리 도달하는 공전 방향을 선택합니다.")]
+        private bool preferQuickDeparture = true;
         [Header("Camera and recycling")]
-        [SerializeField, Min(0f)] private float cameraLookAhead = 3.2f;
-        [SerializeField, Min(1f)] private float cameraSharpness = 12f;
+        [SerializeField, Min(0f)] private float cameraLookAhead = 3.6f;
+        [SerializeField, Min(1f)] private float cameraSharpness = 28f;
         [SerializeField, Min(0f)] private float retireMargin = 1f;
 
         private readonly List<RelayPlanet> pool = new List<RelayPlanet>(12);
@@ -182,6 +189,21 @@ namespace GravityRelay
             return FillHorizon();
         }
 
+        public float DepartureDirection(RelayPlanet landing, float arrivalAngle, float incomingDirection)
+        {
+            int index = upcoming.IndexOf(landing);
+            if (!preferQuickDeparture || index < 0 || index + 1 >= upcoming.Count)
+                return incomingDirection;
+            return player.FastestDepartureDirection(landing, upcoming[index + 1],
+                BoundsAt(CameraPositionFor(landing)), arrivalAngle, incomingDirection);
+        }
+
+        private Vector2 IncomingStep(RelayPlanet source)
+        {
+            int index = active.IndexOf(source);
+            return index > 0 ? source.Center - active[index - 1].Center : Vector2.up;
+        }
+
         public bool Advance()
         {
             if (upcoming.Count == 0)
@@ -280,14 +302,18 @@ namespace GravityRelay
             for (int attempt = 0; attempt < candidateAttempts; attempt++)
             {
                 float inward = source.Center.x >= 0f ? -1f : 1f;
-                float direction = random.NextDouble() < 0.75 ? inward : -inward;
+                Vector2 incoming = IncomingStep(source);
+                float continuing = Mathf.Abs(incoming.x) > 0.01f ? Mathf.Sign(incoming.x) : inward;
+                if (Mathf.Abs(source.Center.x + continuing * MinimumHorizontalStep(generationMaxStep)) > AbsoluteHorizontalLimit)
+                    continuing = inward;
+                float direction = random.NextDouble() < directionPersistence ? continuing : -continuing;
                 float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
                     generationMaxStep, (float)random.NextDouble());
                 if (StageAtScore(futureScore) == RelayDifficultyStage.Endless)
                 {
-                    // Alternate capped sweep/crossing/diagonal patterns instead of raising speed or limits.
+                    // Vary sweep length while retaining the shared bend limit; never force a sharp crossing.
                     int pattern = futureScore % 3;
-                    if (pattern == 0) deltaX = inward * Mathf.Lerp(generationMaxStep * 0.75f, generationMaxStep,
+                    if (pattern == 0) deltaX = direction * Mathf.Lerp(generationMaxStep * 0.75f, generationMaxStep,
                         (float)random.NextDouble());
                     if (pattern == 2) deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
                         Mathf.Max(MinimumHorizontalStep(generationMaxStep), generationMaxStep * 0.75f),
@@ -321,6 +347,8 @@ namespace GravityRelay
                 Mathf.Abs(center.x) > AbsoluteHorizontalLimit + tolerance ||
                 Mathf.Abs(center.x - source.Center.x) > generationMaxStep + tolerance ||
                 Mathf.Abs(center.x - source.Center.x) < MinimumHorizontalStep(generationMaxStep) - tolerance)
+                return false;
+            if (Vector2.Angle(IncomingStep(source), center - source.Center) > maximumRelayTurn)
                 return false;
             Rect futureBounds = BoundsAt(CameraPositionFor(source));
             float cap = Mathf.Clamp(maximumCaptureAssist, 0f, 0.8f);

@@ -53,16 +53,16 @@ namespace GravityRelay.Editor
                 route[i] = planetObject.GetComponent<RelayPlanet>();
                 MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1f, 0);
                 MakeSprite("Orbit guide", planetObject.transform, ring, material,
-                    new Color(0.5f, 0.8f, 1f, 0.22f), Vector2.zero, 3f, -1);
+                    new Color(0.5f, 0.8f, 1f, 0.22f), Vector2.zero, 3.6f, -1);
                 MakeSprite("Crater", planetObject.transform, disc, material,
                     colors[i] * 0.75f, new Vector2(-0.125f, 0.09375f), 0.2375f, 1);
             }
             SpriteRenderer marker = MakeSprite("Next target halo", null, ring, material,
-                new Color(1f, 0.82f, 0.3f), centers[1], 3.6f, 2);
+                new Color(1f, 0.82f, 0.3f), centers[1], 4.2f, 2);
             var playerObject = new GameObject("BCSD Player", typeof(RelayPlayer));
             RelayPlayer player = playerObject.GetComponent<RelayPlayer>();
             player.Configure(route, camera);
-            playerObject.transform.position = centers[0] + Vector2.down * 1.5f;
+            playerObject.transform.position = centers[0] + Vector2.down * 1.8f;
             SpriteRenderer body = MakeSprite("BCSD Placeholder (replace via Presentation)", playerObject.transform,
                 disc, material, new Color(1f, 0.89f, 0.57f), Vector2.zero, 0.42f, 10);
             // Decorations are normalized to the body's local scale.

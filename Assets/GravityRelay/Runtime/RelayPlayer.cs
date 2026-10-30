@@ -12,7 +12,7 @@ namespace GravityRelay
         [SerializeField] private RelayEndlessCourse endlessCourse;
         [Header("Balance: orbit and launch")]
         [SerializeField, Min(0.05f), Tooltip("행성 표면과 캐릭터 중심 사이 여유. 가이드 링도 함께 변경됩니다.")]
-        private float orbitClearance = 1f;
+        private float orbitClearance = 1.3f;
         [SerializeField, Min(1f), Tooltip("공전 각속도. 높을수록 발사 타이밍을 맞추기 어렵습니다.")]
         private float orbitDegreesPerSecond = 150f;
         [SerializeField, Range(10f, 20f), Tooltip("접선 방향 발사 속도 (units/s). 중력과 별도로 조정합니다.")]
@@ -29,6 +29,11 @@ namespace GravityRelay
         private float captureDuration = 0.06f;
         [SerializeField, Min(0.1f)] private float flightTimeLimit = 4f;
         [SerializeField, Min(0f)] private float screenExitMargin = 0.25f;
+
+        [Header("Relay input")]
+        [SerializeField, Range(0f, 0.6f), Tooltip("착륙 보정·카메라 이동 중 누른 발사를 잠시 보관합니다. 길게 누르기로 자동 반복하지 않습니다.")]
+        private float launchBufferSeconds = 0.35f;
+        private float launchBufferRemaining;
 
         private Vector2 position;
         private Vector2 velocity;
@@ -68,7 +73,11 @@ namespace GravityRelay
         public void SetGameplayActive(bool active)
         {
             gameplayActive = active && State != RelayState.Dead;
-            if (!gameplayActive) launchQueued = false;
+            if (!gameplayActive)
+            {
+                launchQueued = false;
+                launchBufferRemaining = 0f;
+            }
         }
 
         public void Configure(RelayPlanet[] route, Camera camera)
@@ -98,6 +107,7 @@ namespace GravityRelay
             velocity = Vector2.zero;
             stateTime = 0f;
             launchQueued = false;
+            launchBufferRemaining = 0f;
             FailureReason = string.Empty;
             State = RelayState.Orbiting;
             if (endlessCourse != null && !endlessCourse.ResetCourse())
@@ -111,8 +121,10 @@ namespace GravityRelay
 
         public void RequestLaunch()
         {
-            if (CanLaunch)
-                launchQueued = true;
+            if (!gameplayActive || (State != RelayState.Orbiting && State != RelayState.Capturing))
+                return;
+            launchQueued = true;
+            launchBufferRemaining = Mathf.Max(Time.fixedDeltaTime, launchBufferSeconds);
         }
 
         private void FixedUpdate() => Simulate(Time.fixedDeltaTime);
@@ -125,11 +137,16 @@ namespace GravityRelay
 
             if (endlessCourse != null)
                 endlessCourse.Tick(deltaTime);
+            if (launchQueued)
+            {
+                launchBufferRemaining -= deltaTime;
+                if (launchBufferRemaining < 0f) launchQueued = false;
+            }
             stateTime += deltaTime;
             switch (State)
             {
                 case RelayState.Orbiting:
-                    if (launchQueued)
+                    if (launchQueued && CanLaunch)
                     {
                         launchQueued = false;
                         Vector2 radial = (position - CurrentPlanet.Center).normalized;
@@ -183,11 +200,25 @@ namespace GravityRelay
             captureAngle = Mathf.Atan2(radial.y, radial.x);
             float cross = radial.x * velocity.y - radial.y * velocity.x;
             orbitDirection = cross >= 0f ? 1f : -1f;
+            if (endlessCourse != null)
+                orbitDirection = endlessCourse.DepartureDirection(TargetPlanet, captureAngle, orbitDirection);
             captureStart = position;
             velocity = Vector2.zero;
             stateTime = 0f;
             launchQueued = false;
             State = RelayState.Capturing;
+        }
+
+        public float FastestDepartureDirection(RelayPlanet source, RelayPlanet target, Rect bounds,
+            float arrivalAngle, float incomingDirection)
+        {
+            bool forward = FindLaunchWindow(source, target.Center, target.Radius, bounds,
+                arrivalAngle, incomingDirection, target.MinimumLaunchWindow, target.CaptureAssist, out int forwardWait);
+            bool reverse = FindLaunchWindow(source, target.Center, target.Radius, bounds,
+                arrivalAngle, -incomingDirection, target.MinimumLaunchWindow, target.CaptureAssist, out int reverseWait);
+            // Preserve incoming momentum when both choices are similarly quick (within 0.08 seconds).
+            return reverse && (!forward || reverseWait + Mathf.CeilToInt(0.08f / Time.fixedDeltaTime) < forwardWait)
+                ? -incomingDirection : incomingDirection;
         }
 
         private Vector2 OrbitPosition(RelayPlanet planet, float radians) =>
