@@ -61,3 +61,6 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 BCSD original: user-supplied transparent 512px PNG copied unchanged to Art/BCSDCharacter.png, directly wired in scene SpriteRenderer and Presentation. PPU320, child scale1.15, white tint; placeholder eyes disabled. Dedicated Feedback Particle Sprite retains Disc; dynamic tangent arrow offset respects sprite bounds. User provided one pose only, so expression slots remain optional and no procedural face overlays are drawn on the logo. User scene tuning preserved. No tests/Play/compile/editor visual validation executed.
+
+
+2026-10-31 revised BCSD sprite: image_gen edit of user reference, charcoal round body, purple ring and white face; no hands/arms/gray feet/legs/pen/notebook. Art/BCSDCharacterClean.png directly wired into scene and scene builder; original asset retained. Visible width kept near1.55 units by importer PPU, child scale1.15 unchanged. User scene tuning preserved. See Docs/GravityRelayCharacter.md for full generation prompt. No Unity Play/tests/compile/game visual validation executed.

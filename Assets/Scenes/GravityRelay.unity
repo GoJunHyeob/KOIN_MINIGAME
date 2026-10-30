@@ -185,7 +185,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 10
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: 403829dc8e9f4b2bba721c6e2106201b, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5e9b1083a1e74dcaa2290164fd563fb4, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -1709,7 +1709,7 @@ MonoBehaviour:
   inputActions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   uiFont: {fileID: 12800000, guid: 1a062d8f928e46988b42c081c8e037b7, type: 3}
   emphasisFont: {fileID: 12800000, guid: 098d0f19b4b642438d28637cef62ab29, type: 3}
-  bcsdSprite: {fileID: 21300000, guid: 403829dc8e9f4b2bba721c6e2106201b, type: 3}
+  bcsdSprite: {fileID: 21300000, guid: 5e9b1083a1e74dcaa2290164fd563fb4, type: 3}
   feedbackParticleSprite: {fileID: -1387967432046628578, guid: 4fca7752604fdfe47956312f08deddc5, type: 3}
   mascot: {fileID: 60994180}
   arrowLength: 0.9

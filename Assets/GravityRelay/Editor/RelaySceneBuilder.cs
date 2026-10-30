@@ -70,7 +70,7 @@ namespace GravityRelay.Editor
                 new Vector2(-0.16f, 0.1f), 0.14f, 11);
             MakeSprite("Eye R", body.transform, disc, material, new Color(0.78f, 0.63f, 1f),
                 new Vector2(0.16f, 0.1f), 0.14f, 11);
-            Sprite bcsdCharacter = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GravityRelay/Art/BCSDCharacter.png");
+            Sprite bcsdCharacter = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GravityRelay/Art/BCSDCharacterClean.png");
             if (bcsdCharacter != null)
             {
                 body.gameObject.name = "BCSD Character";
