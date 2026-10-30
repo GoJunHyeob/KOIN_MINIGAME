@@ -23,7 +23,7 @@ namespace GravityRelay
         [SerializeField, Min(0.01f)] private float softening = 0.8f;
         [SerializeField, Min(0.1f)] private float maxAcceleration = 40f;
         [Header("Balance: landing and failure")]
-        [SerializeField, Min(0f), Tooltip("공전 반경 바깥의 추가 포획 여유. 금색 링이 실제 포획 반경입니다.")]
+        [SerializeField, Min(0f), Tooltip("공전 반경 바깥의 추가 포획 여유. 보라색 링이 실제 포획 반경입니다.")]
         private float captureMargin = 0.3f;
         [SerializeField, Min(0.01f), Tooltip("착륙 위치 보정 시간. 짧을수록 탁 잡히고, 길수록 부드럽게 붙습니다.")]
         private float captureDuration = 0.06f;
@@ -47,6 +47,11 @@ namespace GravityRelay
         private Rect flightBounds;
         public RelayState State { get; private set; }
         public int Score { get; private set; }
+        public int Combo { get; private set; }
+        public int PeakCombo { get; private set; }
+        public event System.Action<Vector2, int> Launched;
+        public event System.Action<Vector2, int> Landed;
+        public event System.Action<Vector2> Died;
         public int CurrentIndex { get; private set; }
         public int TargetIndex => endlessCourse != null ? Score + 1 : (CurrentIndex + 1) % planets.Length;
         public bool CanLaunch => gameplayActive && State == RelayState.Orbiting &&
@@ -101,6 +106,8 @@ namespace GravityRelay
         public void Restart()
         {
             Score = 0;
+            Combo = 0;
+            PeakCombo = 0;
             CurrentIndex = 0;
             angle = -90f * Mathf.Deg2Rad;
             orbitDirection = 1f;
@@ -154,6 +161,7 @@ namespace GravityRelay
                         flightBounds = CameraBounds();
                         State = RelayState.Flying;
                         stateTime = 0f;
+                        Launched?.Invoke(position, Combo);
                     }
                     else
                     {
@@ -184,10 +192,14 @@ namespace GravityRelay
                         CurrentIndex = TargetIndex;
                         angle = captureAngle;
                         Score++;
+                        Combo++;
+                        PeakCombo = Mathf.Max(PeakCombo, Combo);
                         State = RelayState.Orbiting;
                         stateTime = 0f;
                         if (endlessCourse != null && !endlessCourse.Advance())
                             Die("NO REACHABLE ROUTE");
+                        else
+                            Landed?.Invoke(position, Combo);
                     }
                     break;
             }
@@ -324,11 +336,15 @@ namespace GravityRelay
 
         private void Die(string reason)
         {
+            if (State == RelayState.Dead) return;
+            Combo = 0;
             gameplayActive = false;
             State = RelayState.Dead;
             FailureReason = reason;
             velocity = Vector2.zero;
             launchQueued = false;
+            launchBufferRemaining = 0f;
+            Died?.Invoke(position);
         }
 
         private void ApplyPose()

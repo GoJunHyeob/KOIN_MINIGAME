@@ -25,6 +25,22 @@ namespace GravityRelay
         [SerializeField] private InputActionAsset inputActions;
         [SerializeField] private Sprite bcsdSprite;
         [SerializeField] private SpriteRenderer mascot;
+        [Header("Replace placeholder assets here")]
+        [SerializeField] private AudioClip launchSound;
+        [SerializeField] private AudioClip landingSound;
+        [SerializeField] private AudioClip failureSound;
+        [SerializeField] private Sprite launchExpression;
+        [SerializeField] private Sprite landingExpression;
+        [SerializeField] private Sprite comboExpression;
+        [SerializeField] private Sprite failureExpression;
+        [SerializeField, Range(0f, 1f)] private float effectsVolume = 0.45f;
+        [SerializeField, Range(5, 30)] private int comboFeedbackCap = 15;
+        private RelayFeedback feedback;
+        private GUIStyle hudScoreStyle, hudBestStyle, comboStyle, hudButtonStyle;
+        private string comboText;
+        private string resultComboText;
+        private int displayedCombo = -1;
+        private static readonly Rect PauseButtonRect = new Rect(374f, 720f, 44f, 56f);
         [Header("Space background")]
         [SerializeField] private Sprite spaceBackground;
         [SerializeField, Range(0f, 1f)] private float backgroundBrightness = 0.9f;
@@ -80,22 +96,20 @@ namespace GravityRelay
             // Clone the template map so another scene's input remains independent.
             ownedActions = Instantiate(inputActions);
             launchAction = ownedActions.FindAction("Player/Attack", true);
-            // Replace the template's release-time tap with a press, avoiding two commands per touch.
-            bool hasTouch = false;
+            // Keep the existing action clone, but accept only pointer presses for this game UI.
             for (int i = 0; i < launchAction.bindings.Count; i++)
-            {
-                if (launchAction.bindings[i].path == "<Touchscreen>/primaryTouch/tap")
-                {
-                    launchAction.ApplyBindingOverride(i, "<Touchscreen>/primaryTouch/press");
-                    hasTouch = true;
-                }
-            }
-            if (!hasTouch)
-                launchAction.AddBinding("<Touchscreen>/primaryTouch/press");
-            launchAction.AddBinding("<Keyboard>/space");
+                launchAction.ApplyBindingOverride(i, string.Empty);
+            launchAction.AddBinding("<Mouse>/leftButton");
+            launchAction.AddBinding("<Touchscreen>/primaryTouch/press");
             launchAction.Enable();
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Android system Back is delivered as Escape; desktop keyboard shortcuts stay disabled.
             cancelAction = ownedActions.FindAction("UI/Cancel", true);
+            for (int i = 0; i < cancelAction.bindings.Count; i++)
+                cancelAction.ApplyBindingOverride(i, string.Empty);
+            cancelAction.AddBinding("<Keyboard>/escape");
             cancelAction.Enable();
+#endif
             if (initialized)
             {
                 player.SetGameplayActive(screen == ScreenState.Playing);
@@ -111,6 +125,7 @@ namespace GravityRelay
                 SaveBest();
                 player.SetGameplayActive(false);
             }
+            if (feedback != null) { feedback.SetPlaying(false); feedback.ResetFeedback(); }
             launchAction?.Disable();
             cancelAction?.Disable();
             if (ownedActions != null)
@@ -135,6 +150,7 @@ namespace GravityRelay
             player.SetGameplayActive(false);
             initialized = true;
             BlockTransitionInput();
+            Sprite particleDot = mascot.sprite;
             mascotBaseColor = mascot.color;
             mascotBaseScale = mascot.transform.localScale;
             mascotBaseRotation = mascot.transform.localRotation;
@@ -153,10 +169,19 @@ namespace GravityRelay
             if (bcsdSprite != null)
             {
                 mascot.sprite = bcsdSprite;
+                mascotBaseColor = Color.white;
+                mascot.color = Color.white;
                 // The geometric placeholder decorations are children of the renderer.
                 foreach (Transform child in mascot.transform)
                     child.gameObject.SetActive(false);
             }
+            feedback = gameObject.AddComponent<RelayFeedback>();
+            feedback.Configure(player, mascot, targetMarker, particleDot, bcsdSprite == null,
+                launchSound != null ? launchSound : Resources.Load<AudioClip>("GravityRelaySfx/PlaceholderLaunch"),
+                landingSound != null ? landingSound : Resources.Load<AudioClip>("GravityRelaySfx/PlaceholderLanding"),
+                failureSound != null ? failureSound : Resources.Load<AudioClip>("GravityRelaySfx/PlaceholderFailure"),
+                effectsVolume, comboFeedbackCap,
+                new[] { launchExpression, landingExpression, comboExpression, failureExpression });
         }
 
         private void Update()
@@ -173,6 +198,7 @@ namespace GravityRelay
             {
                 resultScore = player.Score;
                 resultScoreText = resultScore.ToString("00");
+                resultComboText = "최대 콤보  " + player.PeakCombo;
                 newRecord = resultScore > bestAtRunStart;
                 SaveBest();
                 screen = ScreenState.Results;
@@ -187,25 +213,12 @@ namespace GravityRelay
                     inputBlocked = false;
                 return;
             }
-            if (cancelAction.WasPressedThisFrame())
+            if (cancelAction != null && cancelAction.WasPressedThisFrame())
             {
                 HandleBack();
                 return;
             }
-            if (screen != ScreenState.Playing)
-            {
-                if (ConfirmPressed())
-                {
-                    if (screen == ScreenState.Paused) ResumeRun();
-                    else StartRun();
-                }
-                return;
-            }
-            if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
-            {
-                StartRun();
-                return;
-            }
+            if (screen != ScreenState.Playing) return;
             if (launchAction.WasPressedThisFrame() && PointerInsideGame())
                 player.RequestLaunch();
         }
@@ -220,10 +233,6 @@ namespace GravityRelay
         {
             if (launchAction != null && launchAction.IsPressed()) return true;
             if (cancelAction != null && cancelAction.IsPressed()) return true;
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && (keyboard.enterKey.isPressed || keyboard.numpadEnterKey.isPressed ||
-                keyboard.spaceKey.isPressed || keyboard.rKey.isPressed)) return true;
-            if (Gamepad.current != null && Gamepad.current.buttonSouth.isPressed) return true;
             if (Mouse.current != null && Mouse.current.leftButton.isPressed) return true;
             if (Touchscreen.current != null)
             {
@@ -233,22 +242,30 @@ namespace GravityRelay
             return false;
         }
 
-        private static bool ConfirmPressed()
-        {
-            Keyboard keyboard = Keyboard.current;
-            return (keyboard != null && (keyboard.enterKey.wasPressedThisFrame ||
-                keyboard.numpadEnterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame ||
-                keyboard.rKey.wasPressedThisFrame)) ||
-                (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame);
-        }
-
         private bool PointerInsideGame()
         {
             InputDevice device = launchAction.activeControl?.device;
-            if (device is Mouse mouse) return playCamera.pixelRect.Contains(mouse.position.ReadValue());
+            if (device is Mouse mouse) return playCamera.pixelRect.Contains(mouse.position.ReadValue()) &&
+                !PointerOverPauseButton(mouse.position.ReadValue());
             if (device is Touchscreen touchscreen)
-                return new Rect(0f, 0f, Screen.width, Screen.height).Contains(touchscreen.primaryTouch.position.ReadValue());
+                return new Rect(0f, 0f, Screen.width, Screen.height).Contains(touchscreen.primaryTouch.position.ReadValue()) &&
+                    !PointerOverPauseButton(touchscreen.primaryTouch.position.ReadValue());
             return true;
+        }
+
+        private bool PointerOverPauseButton(Vector2 point)
+        {
+            Rect pixels = playCamera.pixelRect;
+            Rect safe = Screen.safeArea;
+            float left = Mathf.Max(pixels.xMin, safe.xMin);
+            float right = Mathf.Min(pixels.xMax, safe.xMax);
+            float top = Mathf.Min(pixels.yMax, safe.yMax);
+            float bottom = Mathf.Max(pixels.yMin, safe.yMin);
+            float scale = Mathf.Min((right - left) / 450f, (top - bottom) / 800f);
+            if (scale <= 0f) return false;
+            float x = left + (right - left - 450f * scale) * 0.5f;
+            float y = Screen.height - top + (top - bottom - 800f * scale) * 0.5f;
+            return PauseButtonRect.Contains(new Vector2((point.x - x) / scale, (Screen.height - point.y - y) / scale));
         }
 
         private void HandleBack()
@@ -259,6 +276,7 @@ namespace GravityRelay
                 SaveBest();
                 player.SetGameplayActive(false);
                 screen = ScreenState.Paused;
+                if (feedback != null) feedback.ResetFeedback();
                 BlockTransitionInput();
             }
             else if (screen == ScreenState.Paused) ResumeRun();
@@ -275,6 +293,7 @@ namespace GravityRelay
 
         private void StartRun()
         {
+            if (feedback != null) feedback.ResetFeedback();
             RecordScore();
             SaveBest();
             // The title already has a prepared course; reuse it to avoid duplicate generation on Start.
@@ -294,6 +313,7 @@ namespace GravityRelay
 
         private void ShowTitle()
         {
+            if (feedback != null) feedback.ResetFeedback();
             RecordScore();
             SaveBest();
             player.SetGameplayActive(false);
@@ -314,6 +334,11 @@ namespace GravityRelay
             {
                 displayedScore = player.Score;
                 scoreText = player.Score.ToString("00");
+            }
+            if (displayedCombo != player.Combo)
+            {
+                displayedCombo = player.Combo;
+                comboText = "콤보  " + player.Combo;
             }
             if (player.Score > bestScore)
             {
@@ -373,6 +398,7 @@ namespace GravityRelay
             if (launchArrow == null)
                 return;
 
+            if (feedback != null) feedback.SetPlaying(screen == ScreenState.Playing);
             bool stateChanged = previousState != player.State;
             bool restarted = player.Score < feedbackScore ||
                 (previousState == RelayState.Dead && player.State == RelayState.Orbiting);
@@ -427,7 +453,7 @@ namespace GravityRelay
             {
                 Vector2 direction = player.LaunchDirection;
                 Vector2 normal = new Vector2(-direction.y, direction.x);
-                Vector2 start = (Vector2)player.transform.position + direction * 0.3f;
+                Vector2 start = (Vector2)player.transform.position + direction * 0.48f;
                 Vector2 tip = start + direction * arrowLength;
                 float head = Mathf.Min(0.22f, arrowLength * 0.35f);
                 launchArrow.startWidth = launchArrow.endWidth = arrowWidth;
@@ -444,6 +470,7 @@ namespace GravityRelay
             {
                 float progress = Mathf.Clamp01((Time.time - landedAt) / feedbackDuration);
                 float radius = landingRadius + progress * 0.6f;
+                landingPulse.startWidth = landingPulse.endWidth = arrowWidth * (1f + Mathf.Min(player.Combo, comboFeedbackCap) * 0.035f);
                 success.a = 1f - progress;
                 landingPulse.startColor = landingPulse.endColor = success;
                 for (int i = 0; i < landingPulse.positionCount; i++)
@@ -465,11 +492,23 @@ namespace GravityRelay
         private void OnGUI()
         {
             if (!initialized) return;
+            // IMGUI buttons must not activate from focused Space/Enter controls.
+            if (Event.current.isKey) Event.current.Use();
+            GUIUtility.keyboardControl = 0;
             if (titleStyle == null)
             {
                 titleStyle = new GUIStyle(GUI.skin.label) { font = emphasisFont, fontSize = 28, alignment = TextAnchor.MiddleCenter };
                 textStyle = new GUIStyle(GUI.skin.label) { font = uiFont, fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true };
                 scoreStyle = new GUIStyle(titleStyle) { fontSize = 56 };
+                hudScoreStyle = new GUIStyle(titleStyle) { fontSize = 36, alignment = TextAnchor.MiddleLeft };
+                hudBestStyle = new GUIStyle(textStyle) { font = emphasisFont, fontSize = 18,
+                    alignment = TextAnchor.MiddleRight, wordWrap = false };
+                comboStyle = new GUIStyle(titleStyle) { fontSize = 20, alignment = TextAnchor.MiddleRight };
+                hudButtonStyle = new GUIStyle(GUI.skin.button) { font = emphasisFont, fontSize = 16,
+                    alignment = TextAnchor.MiddleCenter };
+                hudScoreStyle.normal.textColor = Color.white;
+                hudBestStyle.normal.textColor = Color.white;
+                comboStyle.normal.textColor = Color.white;
                 buttonStyle = new GUIStyle(GUI.skin.button) { font = emphasisFont, fontSize = 22,
                     alignment = TextAnchor.MiddleCenter, border = new RectOffset(0, 0, 0, 0) };
                 foreach (GUIStyleState state in new[] { buttonStyle.normal, buttonStyle.hover,
@@ -478,6 +517,7 @@ namespace GravityRelay
                     state.background = Texture2D.whiteTexture;
                     state.textColor = Color.white;
                 }
+                hudButtonStyle = new GUIStyle(buttonStyle) { fontSize = 16, wordWrap = true };
             }
             Rect pixels = playCamera.pixelRect;
             if (pixels.width <= 0f) return;
@@ -498,6 +538,7 @@ namespace GravityRelay
                 Quaternion.identity, new Vector3(scale, scale, 1f));
             try
             {
+                GUI.enabled = originalEnabled && !inputBlocked;
                 if (screen == ScreenState.Playing) DrawHud();
                 else
                 {
@@ -553,7 +594,7 @@ namespace GravityRelay
             GUI.Label(new Rect(25, 430, 400, 30), bestText, textStyle);
             GUI.color = Color.white;
             if (PrimaryButton(new Rect(40, 624, 370, 72), "시작하기")) StartRun();
-            GUI.Label(new Rect(45, 718, 360, 28), "터치 · 클릭 · Space", textStyle);
+            GUI.Label(new Rect(45, 718, 360, 28), "터치 · 클릭으로 조작", textStyle);
         }
 
         private void DrawResultsScreen()
@@ -566,7 +607,8 @@ namespace GravityRelay
             GUI.Label(new Rect(25, 320, 400, 26), "이번 점수", textStyle);
             GUI.Label(new Rect(25, 356, 400, 80), resultScoreText, scoreStyle);
             GUI.Label(new Rect(25, 466, 400, 30), bestText, textStyle);
-            if (newRecord) GUI.Label(new Rect(25, 510, 400, 30), "새로운 최고 기록!", textStyle);
+            GUI.Label(new Rect(25, 506, 400, 30), resultComboText, textStyle);
+            if (newRecord) GUI.Label(new Rect(25, 546, 400, 30), "새로운 최고 기록!", textStyle);
             if (PrimaryButton(new Rect(40, 610, 370, 72), "바로 다시하기")) StartRun();
             if (SecondaryButton(new Rect(95, 702, 260, 52), "시작 화면")) ShowTitle();
         }
@@ -593,18 +635,21 @@ namespace GravityRelay
 
         private void DrawHud()
         {
-            // The next target is above the current orbit. Keep its approach clear with a small bottom HUD.
-            DrawPanel(new Rect(18, 732, 414, 56), new Color(0.055f, 0.035f, 0.12f, 0.72f));
+            // Opaque backing and a lavender border isolate the HUD from even the brightest nebula.
+            DrawPanel(new Rect(18, 708, 414, 80), new Color(0.62f, 0.39f, 0.9f, 1f));
+            DrawPanel(new Rect(20, 710, 410, 76), new Color(0.025f, 0.015f, 0.055f, 1f));
             GUI.color = Color.white;
-            GUI.Label(new Rect(25, 736, 125, 46), scoreText, titleStyle);
-            GUI.color = new Color(0.78f, 0.69f, 0.93f);
-            GUI.Label(new Rect(275, 744, 145, 30), bestText, textStyle);
-            if (Time.time - landedAt < feedbackDuration)
-            {
-                GUI.color = new Color(0.83f, 0.70f, 1f);
-                GUI.Label(new Rect(170, 744, 90, 30), "+1", textStyle);
-            }
+            hudScoreStyle.fontSize = scoreText != null && scoreText.Length > 4
+                ? Mathf.Max(20, 36 - (scoreText.Length - 4) * 3) : 36;
+            GUI.Label(new Rect(32, 718, 112, 54), scoreText, hudScoreStyle);
+            GUI.Label(new Rect(151, 713, 207, 28), bestText, hudBestStyle);
+            float pop = 1f + Mathf.Clamp01(1f - (Time.time - landedAt) / 0.18f) * 0.2f;
+            comboStyle.fontSize = Mathf.RoundToInt(Mathf.Lerp(20f, 27f,
+                Mathf.Clamp01(player.Combo / (float)Mathf.Max(1, comboFeedbackCap))) * pop);
+            GUI.color = new Color(0.89f, 0.77f, 1f);
+            GUI.Label(new Rect(148, 742, 210, 40), comboText, comboStyle);
             GUI.color = Color.white;
+            if (GUI.Button(PauseButtonRect, "일시\n정지", hudButtonStyle)) HandleBack();
         }
     }
 }
