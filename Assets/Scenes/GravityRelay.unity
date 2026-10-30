@@ -935,7 +935,7 @@ MonoBehaviour:
   playCamera: {fileID: 1528330753}
   endlessCourse: {fileID: 1355171099}
   orbitClearance: 0.38
-  orbitDegreesPerSecond: 100
+  orbitDegreesPerSecond: 150
   launchSpeed: 15
   gravityStrength: 60
   softening: 0.8
@@ -981,7 +981,8 @@ MonoBehaviour:
   - {fileID: 2072075189}
   seed: 2718
   startPosition: {x: -1, y: -3.2}
-  poolSize: 8
+  poolSize: 12
+  planetsAhead: 4
   minVerticalGap: 3.1
   maxVerticalGap: 3.7
   horizontalLimit: 1.6

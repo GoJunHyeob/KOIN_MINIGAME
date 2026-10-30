@@ -41,6 +41,10 @@ namespace GravityRelay.Editor
                 Vector3 initialCamera = camera.transform.position;
                 Vector2 initialTarget = player.TargetPlanet.Center;
                 int initialPoolCount = course.PoolCount;
+                int previewCount = course.ConfiguredAheadCount;
+                Require(course.AheadCount == previewCount, "Initial forward map was not filled.");
+                var initialMap = new Vector2[previewCount];
+                for (int i = 0; i < previewCount; i++) initialMap[i] = course.UpcomingPlanets[i].Center;
                 var physics = new SerializedObject(player);
                 string[] protectedFields = { "launchSpeed", "gravityStrength", "maxAcceleration",
                     "orbitDegreesPerSecond", "captureMargin", "captureDuration" };
@@ -56,6 +60,8 @@ namespace GravityRelay.Editor
                     while (!player.CanLaunch && player.State != RelayState.Dead && guard++ < 300)
                         player.Simulate(dt);
                     Require(player.CanLaunch, "Camera never settled on leg " + leg);
+                    Require(course.AheadCount == previewCount, "Forward map shrank.");
+                    ValidateUpcomingRanges(player, course);
                     Require(player.TargetPlanet.Center.y > player.CurrentPlanet.Center.y, "Target must be above player.");
                     course.GetGenerationLimits(player.Score, out float minimumGap, out float maximumGap, out float maximumStep);
                     Vector2 separation = player.TargetPlanet.Center - player.CurrentPlanet.Center;
@@ -69,6 +75,13 @@ namespace GravityRelay.Editor
                     for (int tick = 0; tick < wait; tick++) player.Simulate(dt);
                     int previousScore = player.Score;
                     float targetHeight = player.TargetPlanet.Center.y;
+                    var oldFuture = new RelayPlanet[previewCount];
+                    var oldPositions = new Vector2[previewCount];
+                    for (int i = 0; i < previewCount; i++)
+                    {
+                        oldFuture[i] = course.UpcomingPlanets[i];
+                        oldPositions[i] = oldFuture[i].Center;
+                    }
                     player.RequestLaunch();
                     player.Simulate(dt);
                     Require(player.State == RelayState.Flying, "Launch rejected after framing.");
@@ -84,6 +97,13 @@ namespace GravityRelay.Editor
                         "Landing failed on leg " + leg + ": " + player.FailureReason);
                     Require(Mathf.Abs(player.CurrentPlanet.Center.y - targetHeight) < 0.001f, "Landed on wrong planet.");
                     Require(player.TargetIndex == player.Score + 1, "Target label wrapped instead of increasing.");
+                    for (int i = 0; i < previewCount - 1; i++)
+                        Require(course.UpcomingPlanets[i] == oldFuture[i + 1] &&
+                            course.UpcomingPlanets[i].Center == oldPositions[i + 1],
+                            "A previously visible future planet moved or was replaced.");
+                    RelayPlanet newTail = course.UpcomingPlanets[previewCount - 1];
+                    Require(newTail.Center.y - newTail.Radius > lockedCamera.y + camera.orthographicSize,
+                        "A new planet popped into the visible flight frame.");
                     maxActive = Mathf.Max(maxActive, course.ActiveCount);
                     Require(course.PoolCount == initialPoolCount && course.ActiveCount <= initialPoolCount,
                         "Pool grew beyond its budget.");
@@ -100,10 +120,12 @@ namespace GravityRelay.Editor
                     Require(physics.FindProperty(protectedFields[i]).floatValue == originalPhysics[i],
                         "Progression altered player physics: " + protectedFields[i]);
                 player.Restart();
-                Require(player.Score == 0 && player.CanLaunch && course.ActiveCount == 2 && course.PoolCount == initialPoolCount,
+                Require(player.Score == 0 && player.CanLaunch && course.ActiveCount == previewCount + 1 && course.PoolCount == initialPoolCount,
                     "Restart failed to reset/reuse the pool.");
                 Require(camera.transform.position == initialCamera && player.TargetPlanet.Center == initialTarget,
                     "Restart failed to restore camera and deterministic first target.");
+                for (int i = 0; i < previewCount; i++)
+                    Require(course.UpcomingPlanets[i].Center == initialMap[i], "Restart changed the prebuilt map.");
                 player.RequestLaunch();
                 player.Restart();
                 player.Simulate(dt);
@@ -126,10 +148,27 @@ namespace GravityRelay.Editor
                 Debug.Log("RELAY_ENDLESS_PASSED: 100 landings, upward targets, frozen flight camera, no overlaps, " +
                     "pool=" + initialPoolCount + ", peak active=" + maxActive +
                     ", difficulty ranges/caps, unchanged physics, restart, screen exit and timeout.");
+                Debug.Log("RELAY_HORIZON_PASSED: ahead=" + previewCount +
+                    ", stable visible planets, offscreen tail generation, future-score difficulty and full map restart.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        private static void ValidateUpcomingRanges(RelayPlayer player, RelayEndlessCourse course)
+        {
+            for (int i = 0; i < course.AheadCount; i++)
+            {
+                RelayPlanet from = i == 0 ? player.CurrentPlanet : course.UpcomingPlanets[i - 1];
+                RelayPlanet to = course.UpcomingPlanets[i];
+                course.GetGenerationLimits(player.Score + i, out float min, out float max, out float step);
+                Vector2 separation = to.Center - from.Center;
+                Require(separation.y >= min - 0.001f && separation.y <= max + 0.001f &&
+                    Mathf.Abs(separation.x) <= step + 0.001f &&
+                    Mathf.Abs(to.Center.x) <= course.AbsoluteHorizontalLimit + 0.001f,
+                    "A prebuilt leg uses the wrong future-score difficulty.");
             }
         }
 

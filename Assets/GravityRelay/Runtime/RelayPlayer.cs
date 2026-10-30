@@ -205,20 +205,33 @@ namespace GravityRelay
         public bool TryFindLaunchWait(RelayPlanet source, Vector2 targetCenter, float targetRadius,
             Rect bounds, out int waitTicks)
         {
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, angle, orbitDirection, 3, out waitTicks);
+        }
+
+        public bool CanReachFromEitherOrbit(RelayPlanet source, Vector2 targetCenter, float targetRadius, Rect bounds)
+        {
+            // Future arrival phase/direction is unknown. A wider window in both directions keeps previews usable.
+            return FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, 1f, 4, out _) &&
+                FindLaunchWindow(source, targetCenter, targetRadius, bounds, 0f, -1f, 4, out _);
+        }
+
+        private bool FindLaunchWindow(RelayPlanet source, Vector2 targetCenter, float targetRadius,
+            Rect bounds, float phase, float direction, int requiredSamples, out int waitTicks)
+        {
             float dt = Mathf.Max(0.001f, Time.fixedDeltaTime);
-            float angularStep = orbitDegreesPerSecond * Mathf.Deg2Rad * dt * orbitDirection;
+            float angularStep = orbitDegreesPerSecond * Mathf.Deg2Rad * dt * direction;
             int period = Mathf.CeilToInt(360f / (orbitDegreesPerSecond * dt));
             int stride = Mathf.Max(1, Mathf.CeilToInt(period / 180f));
-            int samples = Mathf.CeilToInt((float)period / stride) + 3;
+            int samples = Mathf.CeilToInt((float)period / stride) + requiredSamples;
             int consecutive = 0;
             int runStart = 0;
             for (int sample = 0; sample < samples; sample++)
             {
                 int ticks = sample * stride;
-                float launchAngle = angle + ticks * angularStep;
+                float launchAngle = phase + ticks * angularStep;
                 Vector2 radial = new Vector2(Mathf.Cos(launchAngle), Mathf.Sin(launchAngle));
                 Vector2 point = source.Center + radial * OrbitRadius(source);
-                Vector2 speed = new Vector2(-radial.y, radial.x) * (launchSpeed * orbitDirection);
+                Vector2 speed = new Vector2(-radial.y, radial.x) * (launchSpeed * direction);
                 bool captured = false;
                 for (int step = 0; step < Mathf.CeilToInt(flightTimeLimit / dt); step++)
                 {
@@ -236,7 +249,7 @@ namespace GravityRelay
                     if (consecutive == 0) runStart = ticks;
                     consecutive++;
                     // Reject single-frame lucky shots; require a small usable launch window.
-                    if (consecutive >= 3)
+                    if (consecutive >= requiredSamples)
                     {
                         waitTicks = runStart;
                         return true;

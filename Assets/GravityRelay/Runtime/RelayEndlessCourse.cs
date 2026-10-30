@@ -11,7 +11,9 @@ namespace GravityRelay
         [Header("Generation")]
         [SerializeField] private int seed = 2718;
         [SerializeField] private Vector2 startPosition = new Vector2(-1f, -3.2f);
-        [SerializeField, Range(8, 12)] private int poolSize = 8;
+        [SerializeField, Range(12, 16)] private int poolSize = 12;
+        [SerializeField, Range(4, 6), Tooltip("항상 앞쪽에 미리 배치할 행성 수입니다.")]
+        private int planetsAhead = 4;
         [SerializeField, Min(2.8f), Tooltip("전체 생성 높이 차의 하한입니다.")]
         private float minVerticalGap = 3.1f;
         [SerializeField, Min(2.8f), Tooltip("난이도가 올라가도 넘지 않는 높이 차 상한입니다.")]
@@ -40,6 +42,7 @@ namespace GravityRelay
 
         private readonly List<RelayPlanet> pool = new List<RelayPlanet>(12);
         private readonly List<RelayPlanet> active = new List<RelayPlanet>(12);
+        private readonly List<RelayPlanet> upcoming = new List<RelayPlanet>(6);
         private System.Random random;
         private RelayPlanet current;
         private RelayPlanet next;
@@ -51,6 +54,9 @@ namespace GravityRelay
         public int ActiveCount => active.Count;
         public int PoolCount => pool.Count;
         public IReadOnlyList<RelayPlanet> ActivePlanets => active;
+        public IReadOnlyList<RelayPlanet> UpcomingPlanets => upcoming;
+        public int AheadCount => upcoming.Count;
+        public int ConfiguredAheadCount => Mathf.Clamp(planetsAhead, 4, 6);
         public bool ReadyForLaunch => next != null &&
             (playCamera.transform.position - FramedCameraPosition()).sqrMagnitude <= 0.0004f;
         public Rect FramedBounds => BoundsAt(FramedCameraPosition());
@@ -99,7 +105,7 @@ namespace GravityRelay
             {
                 foreach (RelayPlanet planet in planetTemplates)
                     pool.Add(planet);
-                while (pool.Count < Mathf.Clamp(poolSize, 8, 12))
+                while (pool.Count < Mathf.Clamp(poolSize, 12, 16))
                 {
                     RelayPlanet copy = Instantiate(planetTemplates[pool.Count % planetTemplates.Length],
                         planetTemplates[0].transform.parent);
@@ -111,21 +117,28 @@ namespace GravityRelay
             foreach (RelayPlanet planet in pool)
                 planet.gameObject.SetActive(false);
             active.Clear();
+            upcoming.Clear();
             current = pool[0];
             current.transform.position = startPosition;
             current.gameObject.SetActive(true);
             active.Add(current);
             next = null;
             playCamera.transform.position = FramedCameraPosition();
-            return PrepareNext();
+            return FillHorizon();
         }
 
         public bool Advance()
         {
-            current = next;
-            next = null;
+            if (upcoming.Count == 0)
+                return false;
+            current = upcoming[0];
+            upcoming.RemoveAt(0);
+            next = upcoming.Count > 0 ? upcoming[0] : null;
             RetirePastPlanets();
-            return PrepareNext();
+            // Recheck the actual arrival phase without moving a planet that was already visible.
+            if (next != null && !player.TryFindLaunchWait(current, next.Center, next.Radius, FramedBounds, out _))
+                return false;
+            return FillHorizon();
         }
 
         public void Tick(float dt)
@@ -142,8 +155,10 @@ namespace GravityRelay
             RetirePastPlanets();
         }
 
-        private Vector3 FramedCameraPosition() => new Vector3(0f,
-            current != null ? current.Center.y + cameraLookAhead : startPosition.y + cameraLookAhead,
+        private Vector3 FramedCameraPosition() => CameraPositionFor(current);
+
+        private Vector3 CameraPositionFor(RelayPlanet source) => new Vector3(0f,
+            source != null ? source.Center.y + cameraLookAhead : startPosition.y + cameraLookAhead,
             playCamera.transform.position.z);
 
         private Rect BoundsAt(Vector3 point)
@@ -159,7 +174,7 @@ namespace GravityRelay
             for (int i = active.Count - 1; i >= 0; i--)
             {
                 RelayPlanet planet = active[i];
-                if (planet != current && planet != next &&
+                if (planet != current && !upcoming.Contains(planet) &&
                     planet.Center.y + player.CaptureRadius(planet) < bottom)
                 {
                     planet.gameObject.SetActive(false);
@@ -168,10 +183,23 @@ namespace GravityRelay
             }
         }
 
-        private bool PrepareNext()
+        private bool FillHorizon()
         {
-            // Snapshot only at generation/landing. Flight parameters and existing targets never change.
-            GetGenerationLimits(player.Score, out generationMinGap, out generationMaxGap, out generationMaxStep);
+            while (upcoming.Count < ConfiguredAheadCount)
+            {
+                RelayPlanet source = upcoming.Count == 0 ? current : upcoming[upcoming.Count - 1];
+                int futureScore = player.Score + upcoming.Count;
+                if (!PrepareNext(source, futureScore))
+                    return false;
+            }
+            next = upcoming[0];
+            return true;
+        }
+
+        private bool PrepareNext(RelayPlanet source, int futureScore)
+        {
+            // Difficulty belongs to the score when this future leg will be played, not the generation frame.
+            GetGenerationLimits(futureScore, out generationMinGap, out generationMaxGap, out generationMaxStep);
             RelayPlanet available = null;
             foreach (RelayPlanet planet in pool)
             {
@@ -185,38 +213,38 @@ namespace GravityRelay
                 return false;
 
             // A small predictable first step teaches the tangent shot before wider placements appear.
-            Vector2 firstStep = new Vector2(Mathf.Clamp(current.Center.x + Mathf.Min(0.35f, generationMaxStep),
+            Vector2 firstStep = new Vector2(Mathf.Clamp(source.Center.x + Mathf.Min(0.35f, generationMaxStep),
                 -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit),
-                current.Center.y + (generationMinGap + generationMaxGap) * 0.5f);
-            if (player.Score == 0 && Accept(firstStep, available))
+                source.Center.y + (generationMinGap + generationMaxGap) * 0.5f);
+            if (futureScore == 0 && Accept(firstStep, available, source))
                 return true;
             for (int attempt = 0; attempt < candidateAttempts; attempt++)
             {
                 float deltaX = Mathf.Lerp(-generationMaxStep, generationMaxStep, (float)random.NextDouble());
-                float x = Mathf.Clamp(current.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
+                float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
                 float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (float)random.NextDouble());
-                if (Accept(new Vector2(x, current.Center.y + gap), available))
+                if (Accept(new Vector2(x, source.Center.y + gap), available, source))
                     return true;
             }
             // Bounded deterministic fallback, still tested with the real movement model.
             for (int attempt = 0; attempt < 9; attempt++)
             {
                 float deltaX = attempt < 3 ? 0f : attempt < 6 ? -generationMaxStep : generationMaxStep;
-                float x = Mathf.Clamp(current.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
+                float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
                 float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (attempt % 3) * 0.5f);
-                if (Accept(new Vector2(x, current.Center.y + gap), available))
+                if (Accept(new Vector2(x, source.Center.y + gap), available, source))
                     return true;
             }
             return false;
         }
 
-        private bool Accept(Vector2 center, RelayPlanet candidate)
+        private bool Accept(Vector2 center, RelayPlanet candidate, RelayPlanet source)
         {
-            float gap = center.y - current.Center.y;
+            float gap = center.y - source.Center.y;
             const float tolerance = 0.0001f;
             if (gap < generationMinGap - tolerance || gap > generationMaxGap + tolerance ||
                 Mathf.Abs(center.x) > AbsoluteHorizontalLimit + tolerance ||
-                Mathf.Abs(center.x - current.Center.x) > generationMaxStep + tolerance)
+                Mathf.Abs(center.x - source.Center.x) > generationMaxStep + tolerance)
                 return false;
             foreach (RelayPlanet planet in active)
             {
@@ -224,13 +252,15 @@ namespace GravityRelay
                 if ((center - planet.Center).sqrMagnitude < distance * distance)
                     return false;
             }
-            if (!player.TryFindLaunchWait(current, center, candidate.Radius, FramedBounds, out _))
+            Rect futureBounds = BoundsAt(CameraPositionFor(source));
+            if (!player.CanReachFromEitherOrbit(source, center, candidate.Radius, futureBounds))
                 return false;
             candidate.transform.position = center;
             candidate.gameObject.SetActive(true);
             candidate.RefreshVisuals();
             active.Add(candidate);
-            next = candidate;
+            upcoming.Add(candidate);
+            next = upcoming[0];
             return true;
         }
     }

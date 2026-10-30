@@ -6,12 +6,12 @@ Unity 6000.3.25f1에서 `Assets/Scenes/GravityRelay.unity`를 열고 Play. Game 
 
 클릭/터치/Space(또는 기존 Attack 게임패드 바인딩)로 접선 발사. 하늘색 화살표는 현재 접선 발사 방향이다(중력 곡선이나 성공 예측은 아님). 비행/포획 중 추가 발사는 무시. 사망 후 같은 입력으로 즉시 재시작, R은 어느 상태에서든 재시작한다. 포획 완료마다 1점과 녹색 확산 링, 캐릭터 강조, LANDED! +1 문구를 표시한다. 실패 시 붉은 화면 플래시와 사유를 표시한다. 금색 링은 다음 목표의 실제 포획 반경이며 목표 번호는 2→3→4…로 계속 증가한다. 착륙 후 카메라가 다음 구간을 비추는 동안에는 발사를 대기한다. HUD의 BCSD 표기는 원본 미제공으로 임시 캐릭터임을 구분한다.
 
-현재 씬은 위로 계속 진행하는 무한 코스다. 생성·카메라·행성 회수·재시작과 Inspector 항목은 [GravityRelayEndless.md](GravityRelayEndless.md)에 정리했다.
+현재 씬은 위로 계속 진행하는 무한 코스다. 앞쪽 행성 4개를 미리 준비하고 이미 보이는 행성의 배치를 유지하면서 화면 밖 맨 앞쪽에 보충한다. 생성·카메라·행성 회수·재시작과 Inspector 항목은 [GravityRelayEndless.md](GravityRelayEndless.md), 앞쪽 맵은 [GravityRelayHorizon.md](GravityRelayHorizon.md)에 정리했다.
 
 ## 씬 오브젝트
 
 - Main Camera: 직교 크기 8, 9:16 영역, 중앙 (0,0,-10).
-- Planets: 원래 RelayPlanet 3개를 템플릿으로 보존. Play 시 총 8개 풀을 구성해 위쪽 목표로 재배치/재사용. 반경 0.8, 각 Surface / Orbit guide / Crater.
+- Planets: 원래 RelayPlanet 3개를 템플릿으로 보존. Play 시 총 12개 풀을 구성하고 앞쪽 행성 4개를 미리 배치해 재사용. 반경 0.8, 각 Surface / Orbit guide / Crater.
 - Endless Course: RelayEndlessCourse. 생성 범위, 재현 시드, 카메라, 회수 여유를 설정. BCSD Player의 Endless Course 참조로 연결.
 - Next target halo: 다음 행성 표시.
 - BCSD Player: RelayPlayer, 임시 SpriteRenderer와 눈 장식. Rigidbody2D/Collider 불필요.

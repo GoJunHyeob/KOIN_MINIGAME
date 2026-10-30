@@ -278,6 +278,9 @@ namespace GravityRelay
             float scale = pixels.width / 450f;
             GUI.matrix = Matrix4x4.TRS(new Vector3(pixels.x, Screen.height - pixels.yMax, 0f),
                 Quaternion.identity, new Vector3(scale, scale, 1f));
+            // The continuous map now passes behind the HUD; preserve score contrast.
+            GUI.color = new Color(0.015f, 0.025f, 0.055f, 0.85f);
+            GUI.DrawTexture(new Rect(0f, 0f, 450f, 175f), Texture2D.whiteTexture);
             GUI.color = new Color(0.86f, 0.96f, 1f);
             GUI.Label(new Rect(0, 35, 450, 40), "GRAVITY RELAY", titleStyle);
             GUI.Label(new Rect(0, 78, 450, 65), scoreText, scoreStyle);

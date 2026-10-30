@@ -7,6 +7,21 @@ namespace GravityRelay.Editor
 {
     public static class RelayEndlessSetup
     {
+        [MenuItem("Gravity Relay/Apply Forward Map Defaults")]
+        public static void ApplyForwardMapDefaults()
+        {
+            if (Application.isPlaying)
+                throw new InvalidOperationException("Apply saved map settings outside Play Mode.");
+            RelayEndlessCourse course = UnityEngine.Object.FindFirstObjectByType<RelayEndlessCourse>();
+            if (course == null)
+                throw new InvalidOperationException("Configure the endless course first.");
+            var settings = new SerializedObject(course);
+            settings.FindProperty("poolSize").intValue = 12;
+            settings.FindProperty("planetsAhead").intValue = 4;
+            settings.ApplyModifiedProperties();
+            EditorSceneManager.MarkSceneDirty(course.gameObject.scene);
+        }
+
         [MenuItem("Gravity Relay/Enable Endless Progression")]
         public static void EnableInCurrentScene()
         {
