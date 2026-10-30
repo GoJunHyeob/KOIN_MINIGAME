@@ -50,3 +50,6 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 크기 재조정: 행성 반경 0.575 → 0.66, BCSD 표시 Scale 0.725 → 0.835(각각 약 15% 확대). 공전 가이드와 실제 경로를 그대로 유지하기 위해 Orbit Clearance를 1.3 → 1.215로 보정했다. 합산 공전 반경은 1.875(가이드 지름 3.75)로 유지되며 포획 반경·가이드 표시 조건도 유지한다. 씬 세 행성 템플릿과 생성 기본값을 함께 적용했다. 테스트·Play·컴파일 검사는 실행하지 않았다.
+
+
+2026-10-31 space backdrop: generated purple/navy nebula PNG in Art/Resources/GravityRelaySpace.png. Presentation loads the local Sprite once, RelaySpaceBackground reuses three reflected tiles behind gameplay with 0.12 camera parallax and brightness 0.9; existing failure flash is forwarded. No scene edits; user scene changes stay uncommitted. No tests/Play/compile/visual validation executed.

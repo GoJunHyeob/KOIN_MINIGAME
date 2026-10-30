@@ -25,6 +25,11 @@ namespace GravityRelay
         [SerializeField] private InputActionAsset inputActions;
         [SerializeField] private Sprite bcsdSprite;
         [SerializeField] private SpriteRenderer mascot;
+        [Header("Space background")]
+        [SerializeField] private Sprite spaceBackground;
+        [SerializeField, Range(0f, 1f)] private float backgroundBrightness = 0.9f;
+        [SerializeField, Range(0f, 1f)] private float backgroundParallax = 0.12f;
+        private RelaySpaceBackground spaceBackdrop;
         [Header("Typography")]
         [SerializeField] private Font uiFont;
         [SerializeField] private Font emphasisFont;
@@ -110,6 +115,7 @@ namespace GravityRelay
             cancelAction?.Disable();
             if (ownedActions != null)
                 Destroy(ownedActions);
+            if (spaceBackdrop != null) spaceBackdrop.SetFlash(Color.white, 0f);
             if (launchArrow != null) launchArrow.enabled = false;
             if (landingPulse != null) landingPulse.enabled = false;
             if (playCamera != null && launchArrow != null)
@@ -133,6 +139,13 @@ namespace GravityRelay
             mascotBaseScale = mascot.transform.localScale;
             mascotBaseRotation = mascot.transform.localRotation;
             backgroundBaseColor = playCamera.backgroundColor;
+            Sprite background = spaceBackground != null ? spaceBackground : Resources.Load<Sprite>("GravityRelaySpace");
+            if (background != null)
+            {
+                spaceBackdrop = gameObject.AddComponent<RelaySpaceBackground>();
+                spaceBackdrop.Configure(playCamera, background, mascot.sharedMaterial,
+                    backgroundBrightness, backgroundParallax);
+            }
             launchArrow = CreateLine("Tangent launch arrow", 5, false);
             landingPulse = CreateLine("Landing pulse", 64, true);
             previousState = player.State;
@@ -388,6 +401,7 @@ namespace GravityRelay
             float flash = player.State == RelayState.Dead
                 ? 0.35f * Mathf.Clamp01(1f - (Time.time - diedAt) / feedbackDuration) : 0f;
             playCamera.backgroundColor = Color.Lerp(backgroundBaseColor, failure, flash);
+            if (spaceBackdrop != null) spaceBackdrop.SetFlash(failure, flash);
 
             // Visual impulses never alter movement, input timing, or the shared time scale.
             mascot.transform.localRotation = mascotBaseRotation;

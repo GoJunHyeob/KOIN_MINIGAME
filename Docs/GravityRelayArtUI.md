@@ -24,3 +24,16 @@ UI/색상 변경에 대한 테스트·Play·빌드·컴파일·화면 검사는 
 
 
 2026-10-31 크기 재조정: 행성 반경 0.575 → 0.66, BCSD 표시 Scale 0.725 → 0.835(각각 약 15% 확대). 공전 가이드와 실제 경로를 그대로 유지하기 위해 Orbit Clearance를 1.3 → 1.215로 보정했다. 합산 공전 반경은 1.875(가이드 지름 3.75)로 유지되며 포획 반경·가이드 표시 조건도 유지한다. 씬 세 행성 템플릿과 생성 기본값을 함께 적용했다. 테스트·Play·컴파일 검사는 실행하지 않았다.
+
+
+## 우주 배경 (2026-10-31)
+
+이미지 생성 내장 도구로 짙은 남색/보라색 우주, 양쪽의 은은한 보라 성운과 작은 별을 제작했다. 중앙은 어둡게 비워 기존 행성과 캐릭터의 가독성을 우선했다. 최종 파일은 Assets/GravityRelay/Art/Resources/GravityRelaySpace.png이며 프로젝트에 포함한다.
+
+RelayPresentation이 시작할 때 Resources의 기본 Sprite 또는 Inspector의 Space Background를 한 번 불러오고 RelaySpaceBackground에 전달한다. 카메라 뒤쪽에 SpriteRenderer 타일 3개를 한 번 생성해 재사용하며, 위아래를 번갈아 반사해 경계의 픽셀이 이어지도록 한다. 카메라 이동량의 12%로 흐르는 배경이며 밝기는 0.9다. 멈춘 카메라에서는 정지하고 재시작 시 카메라 이동과 함께 원래 구간으로 돌아온다. 별도 충돌체·중력·실패 판정은 없다. 렌더 순서 -100으로 게임 요소 뒤에 표시하며 기존 실패 색상 피드백도 반영한다. 기존 씬의 사용자 변경(포획 여유 등)은 보존했고 이번 배경 커밋에 포함하지 않았다.
+
+Inspector: Relay Input and HUD > Relay Presentation > Space Background / Background Brightness / Background Parallax. Sprite를 지정하지 않아도 기본 배경을 사용한다. 실제 Play·빌드·컴파일·화면 검사는 실행하지 않았다.
+
+생성 방식: 내장 image_gen. 최종 프롬프트:
+
+> Use case: stylized-concept. Create one finished background texture asset for a minimalist portrait 2D mobile space arcade game called Gravity Relay. Tall portrait composition, ideally 1024x1792. Pure background only: very deep indigo/navy and blackened purple space, delicate diffuse purple nebula clouds mostly toward the outer sides, restrained sparse tiny lavender and cool white stars, a few subtly brighter points without big flares. Smooth clean 2D painted gradients, premium quiet atmospheric minimalism, no photorealistic NASA look, no grain. The middle two-thirds must remain very dark and calm with generous negative space so black mascot with purple eyes, pastel lavender planets and purple orbit rings stand out. Overall dim and low contrast, no large bright areas. Avoid all planets, moons, rings, characters, ships, text, logos, borders and UI. Top and bottom edges should be uniformly very dark indigo, with minimal distinctive features near edges to support seamless vertical repeated scrolling. Not a game screenshot or concept sheet, just one usable opaque background texture.
