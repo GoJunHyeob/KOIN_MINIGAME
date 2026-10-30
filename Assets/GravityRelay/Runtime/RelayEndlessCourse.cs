@@ -46,6 +46,8 @@ namespace GravityRelay
         [SerializeField, Min(0.01f)] private float difficultWindow = 0.26f;
         [SerializeField, Min(0.01f)] private float advancedWindow = 0.24f;
         [SerializeField, Min(0.01f)] private float endlessWindow = 0.24f;
+        [SerializeField, Range(0.08f, 0.30f), Tooltip("원하는 성공 구간을 확보하지 못했을 때만 사용하는 최소 구간. 실제 도달·비겹침 판정은 유지합니다.")]
+        private float fallbackLaunchWindow = 0.20f;
         [Header("Per-target capture assistance")]
         [SerializeField, Range(0f, 0.8f)] private float tutorialCaptureAssist = 0.55f;
         [SerializeField, Range(0f, 0.8f)] private float beginnerCaptureAssist = 0.30f;
@@ -268,7 +270,12 @@ namespace GravityRelay
                 RelayPlanet source = upcoming.Count == 0 ? current : upcoming[upcoming.Count - 1];
                 int futureScore = player.Score + upcoming.Count;
                 if (!PrepareNext(source, futureScore))
-                    return false;
+                {
+                    // A failed distant preview must not kill a run with a playable next leg.
+                    // Replenishment is attempted again on the next landing, never every frame.
+                    next = upcoming.Count > 0 ? upcoming[0] : null;
+                    return next != null;
+                }
             }
             next = upcoming[0];
             return true;
@@ -324,17 +331,32 @@ namespace GravityRelay
                 if (Accept(new Vector2(x, source.Center.y + gap), available, source))
                     return true;
             }
-            // Bounded deterministic fallback, still tested with the real movement model.
-            for (int attempt = 0; attempt < 9; attempt++)
+            // Wide timing goals can be incompatible with the current gap, capture cap and screen edges.
+            // Search a bounded grid, then relax only the timing goal down to a visible Inspector floor.
+            // Every fallback still uses the same two-direction flight and non-overlap rules.
+            float requestedWindow = generationWindow;
+            float floor = Mathf.Clamp(fallbackLaunchWindow, 0.01f, requestedWindow);
+            for (int tier = 0; tier <= 3; tier++)
             {
-                float inward = source.Center.x >= 0f ? -1f : 1f;
-                float direction = attempt % 3 == 1 ? -inward : inward;
-                float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
-                    generationMaxStep, (attempt / 3) * 0.5f);
-                float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
-                float gap = Mathf.Lerp(generationMinGap, generationMaxGap, (attempt % 3) * 0.5f);
-                if (Accept(new Vector2(x, source.Center.y + gap), available, source))
-                    return true;
+                generationWindow = tier == 3 ? floor : Mathf.Max(floor, requestedWindow * (1f - tier * 0.25f));
+                for (int side = 0; side < 2; side++)
+                {
+                    float inward = source.Center.x >= 0f ? -1f : 1f;
+                    float direction = side == 0 ? inward : -inward;
+                    for (int column = 0; column < 3; column++)
+                    {
+                        float deltaX = direction * Mathf.Lerp(MinimumHorizontalStep(generationMaxStep),
+                            generationMaxStep, column * 0.5f);
+                        float x = Mathf.Clamp(source.Center.x + deltaX, -AbsoluteHorizontalLimit, AbsoluteHorizontalLimit);
+                        for (int row = 0; row < 3; row++)
+                        {
+                            float gap = Mathf.Lerp(generationMinGap, generationMaxGap, row * 0.5f);
+                            if (Accept(new Vector2(x, source.Center.y + gap), available, source))
+                                return true;
+                        }
+                    }
+                }
+                if (generationWindow <= floor) break;
             }
             return false;
         }

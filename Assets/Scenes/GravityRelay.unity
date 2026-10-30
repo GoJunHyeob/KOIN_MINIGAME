@@ -1004,6 +1004,7 @@ MonoBehaviour:
   difficultWindow: 0.26
   advancedWindow: 0.24
   endlessWindow: 0.24
+  fallbackLaunchWindow: 0.2
   tutorialCaptureAssist: 0.55
   beginnerCaptureAssist: 0.3
   normalCaptureAssist: 0.1
