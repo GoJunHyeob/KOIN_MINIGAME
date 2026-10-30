@@ -51,7 +51,7 @@ namespace GravityRelay.Editor
                 planetObject.transform.SetParent(planetRoot.transform);
                 planetObject.transform.position = centers[i];
                 route[i] = planetObject.GetComponent<RelayPlanet>();
-                MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1.15f, 0);
+                MakeSprite("Surface", planetObject.transform, disc, material, colors[i], Vector2.zero, 1.32f, 0);
                 MakeSprite("Orbit guide", planetObject.transform, ring, material,
                     new Color(0.62f, 0.37f, 0.96f, 0.48f), Vector2.zero, 3.75f, -1);
                 MakeSprite("Crater", planetObject.transform, disc, material,
@@ -64,7 +64,7 @@ namespace GravityRelay.Editor
             player.Configure(route, camera);
             playerObject.transform.position = centers[0] + Vector2.down * 1.875f;
             SpriteRenderer body = MakeSprite("BCSD Placeholder (replace via Presentation)", playerObject.transform,
-                disc, material, new Color(0.055f, 0.04f, 0.085f), Vector2.zero, 0.725f, 10);
+                disc, material, new Color(0.055f, 0.04f, 0.085f), Vector2.zero, 0.835f, 10);
             // Decorations are normalized to the body's local scale.
             MakeSprite("Eye L", body.transform, disc, material, new Color(0.78f, 0.63f, 1f),
                 new Vector2(-0.16f, 0.1f), 0.14f, 11);

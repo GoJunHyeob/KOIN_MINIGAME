@@ -6,7 +6,7 @@ namespace GravityRelay
     public sealed class RelayPlanet : MonoBehaviour
     {
         [SerializeField, Min(0.1f), Tooltip("행성 반경. 표면 크기와 공전 가이드에 즉시 반영됩니다.")]
-        private float radius = 0.575f;
+        private float radius = 0.66f;
         [SerializeField] private SpriteRenderer surface;
         [SerializeField] private SpriteRenderer orbitGuide;
         [SerializeField] private RelayPlayer orbitSource;
