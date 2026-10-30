@@ -330,7 +330,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1.6}
+  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2072075190}
@@ -546,7 +546,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1.6}
+  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1587442300}
@@ -819,7 +819,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.36, y: 2.36, z: 2.36}
+  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1587442300}
@@ -934,9 +934,9 @@ MonoBehaviour:
   - {fileID: 2072075189}
   playCamera: {fileID: 1528330753}
   orbitClearance: 0.38
-  orbitDegreesPerSecond: 110
-  launchSpeed: 6
-  gravityStrength: 18
+  orbitDegreesPerSecond: 120
+  launchSpeed: 7
+  gravityStrength: 22
   softening: 0.8
   maxAcceleration: 12
   captureMargin: 0.22
@@ -970,7 +970,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1.6}
+  m_LocalScale: {x: 1.6, y: 1.6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2023164395}
@@ -1174,6 +1174,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
   radius: 0.8
+  surface: {fileID: 800313540}
+  orbitGuide: {fileID: 1133730893}
+  orbitSource: {fileID: 1246886891}
 --- !u!1 &1647458452
 GameObject:
   m_ObjectHideFlags: 0
@@ -1201,7 +1204,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.36, y: 2.36, z: 2.36}
+  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2072075190}
@@ -1292,7 +1295,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.36, y: 2.36, z: 2.36}
+  m_LocalScale: {x: 2.3600001, y: 2.3600001, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2023164395}
@@ -1573,6 +1576,9 @@ MonoBehaviour:
   inputActions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   bcsdSprite: {fileID: 0}
   mascot: {fileID: 60994180}
+  arrowLength: 0.9
+  arrowWidth: 0.055
+  feedbackDuration: 0.65
 --- !u!4 &1843534438
 Transform:
   m_ObjectHideFlags: 0
@@ -1636,6 +1642,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
   radius: 0.8
+  surface: {fileID: 1429709983}
+  orbitGuide: {fileID: 1689472267}
+  orbitSource: {fileID: 1246886891}
 --- !u!1 &2072075188
 GameObject:
   m_ObjectHideFlags: 0
@@ -1666,6 +1675,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GravityRelay.RelayPlanet
   radius: 0.8
+  surface: {fileID: 180972293}
+  orbitGuide: {fileID: 1647458454}
+  orbitSource: {fileID: 1246886891}
 --- !u!4 &2072075190
 Transform:
   m_ObjectHideFlags: 0

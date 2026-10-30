@@ -90,6 +90,7 @@ namespace GravityRelay.Editor
             var hud = new GameObject("Relay Input and HUD", typeof(RelayPresentation));
             hud.GetComponent<RelayPresentation>().Configure(player, camera, marker, body,
                 AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/Settings/InputSystem_Actions.inputactions"));
+            RelaySceneSetup.WireVisualsInCurrentScene();
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
             // Keep the project's existing startup/build settings intact.

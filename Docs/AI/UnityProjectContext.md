@@ -1,6 +1,6 @@
 # Unity project context
 
-Analyzed 2026-10-30. Project: `C:/Users/Go/Desktop/GameJam2027` (no Git directory found).
+Analyzed 2026-10-30. Project: `C:/Users/Go/Desktop/GameJam2027`. Git main tracks origin/main at https://github.com/GoJunHyeob/KOIN_MINIGAME.git.
 
 Confirmed from ProjectVersion.txt, manifest.json, ProjectSettings.asset and Assets:
 
@@ -14,6 +14,8 @@ Confirmed from ProjectVersion.txt, manifest.json, ProjectSettings.asset and Asse
 - Baseline player defaults are landscape. Gravity Relay uses a portrait camera viewport; global player settings remain intact. Device orientation/build targets are unverified.
 
 Implementation uses GravityRelay namespace, private serialized fields, Allman braces and explicit component references. RelayPlayer owns movement/state/score; RelayPresentation owns template input clone and HUD; RelaySceneBuilder creates the isolated prototype scene and performs deterministic movement validation. Runtime code uses the existing default Assembly-CSharp; Editor code is under Editor/.
+
+RelayPlanet uses ExecuteAlways to synchronize explicitly referenced surface/orbit renderers with Radius and RelayPlayer.OrbitRadius. RelayPresentation draws tangent arrows, the actual capture boundary, landing pulses and failure flashes. RelayPlayerEditor provides opt-in balance presets and explicit scene-reference migration. Current scene preserves the user's speed=7, gravity=22, orbit speed=120 tuning. Main-only workflow: after implementation run git status, summarize, and commit with a feat: message; do not automatically push.
 
 Existing SampleScene, input asset, packages and settings are preserved. GravityRelay scene must be opened explicitly (and added to build scenes if exporting a player). No procedural endless progression is included in this fixed three-planet prototype.
 

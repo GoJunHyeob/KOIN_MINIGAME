@@ -9,13 +9,21 @@ namespace GravityRelay
     {
         [SerializeField] private RelayPlanet[] planets;
         [SerializeField] private Camera playCamera;
-        [SerializeField, Min(0.05f)] private float orbitClearance = 0.38f;
-        [SerializeField, Min(1f)] private float orbitDegreesPerSecond = 110f;
-        [SerializeField, Range(5f, 7f)] private float launchSpeed = 6f;
-        [SerializeField, Min(0f)] private float gravityStrength = 18f;
+        [Header("Balance: orbit and launch")]
+        [SerializeField, Min(0.05f), Tooltip("행성 표면과 캐릭터 중심 사이 여유. 가이드 링도 함께 변경됩니다.")]
+        private float orbitClearance = 0.38f;
+        [SerializeField, Min(1f), Tooltip("공전 각속도. 높을수록 발사 타이밍을 맞추기 어렵습니다.")]
+        private float orbitDegreesPerSecond = 110f;
+        [SerializeField, Range(5f, 7f), Tooltip("접선 방향 발사 속도 (units/s). 중력과 별도로 조정합니다.")]
+        private float launchSpeed = 6f;
+        [Header("Balance: gravity")]
+        [SerializeField, Min(0f), Tooltip("목표 중력 세기. 높이면 궤적이 더 강하게 휘어집니다.")]
+        private float gravityStrength = 18f;
         [SerializeField, Min(0.01f)] private float softening = 0.8f;
         [SerializeField, Min(0.1f)] private float maxAcceleration = 12f;
-        [SerializeField, Min(0f)] private float captureMargin = 0.22f;
+        [Header("Balance: landing and failure")]
+        [SerializeField, Min(0f), Tooltip("공전 반경 바깥의 추가 포획 여유. 금색 링이 실제 포획 반경입니다.")]
+        private float captureMargin = 0.22f;
         [SerializeField, Min(0.01f)] private float captureDuration = 0.15f;
         [SerializeField, Min(0.1f)] private float flightTimeLimit = 4f;
         [SerializeField, Min(0f)] private float screenExitMargin = 0.25f;
@@ -35,6 +43,16 @@ namespace GravityRelay
         public float FlightRemaining => Mathf.Max(0f, flightTimeLimit - stateTime);
         public string FailureReason { get; private set; }
         public Vector2 Velocity => velocity;
+        public Vector2 LaunchDirection
+        {
+            get
+            {
+                Vector2 radial = ((Vector2)transform.position - CurrentPlanet.Center).normalized;
+                return new Vector2(-radial.y, radial.x) * orbitDirection;
+            }
+        }
+        public float OrbitRadius(RelayPlanet planet) => planet.Radius + orbitClearance;
+        public float CaptureRadius(RelayPlanet planet) => OrbitRadius(planet) + captureMargin;
         public RelayPlanet CurrentPlanet => planets[CurrentIndex];
         public RelayPlanet TargetPlanet => planets[TargetIndex];
 
@@ -109,7 +127,7 @@ namespace GravityRelay
                         gravityStrength / (offset.sqrMagnitude + softening * softening));
                     velocity += offset.normalized * (acceleration * deltaTime);
                     Vector2 next = position + velocity * deltaTime;
-                    float captureRadius = TargetPlanet.Radius + orbitClearance + captureMargin;
+                    float captureRadius = CaptureRadius(TargetPlanet);
                     // Swept segment check prevents tunnelling at high speed or low tick rates.
                     Vector2 step = next - position;
                     float t = step.sqrMagnitude > 0f
@@ -162,7 +180,7 @@ namespace GravityRelay
 
         private Vector2 OrbitPosition(RelayPlanet planet, float radians) =>
             planet.Center + new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) *
-            (planet.Radius + orbitClearance);
+            OrbitRadius(planet);
 
         private bool OutsidePlayArea()
         {
