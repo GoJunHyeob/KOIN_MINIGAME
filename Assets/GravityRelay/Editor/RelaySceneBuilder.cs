@@ -70,9 +70,19 @@ namespace GravityRelay.Editor
                 new Vector2(-0.16f, 0.1f), 0.14f, 11);
             MakeSprite("Eye R", body.transform, disc, material, new Color(0.78f, 0.63f, 1f),
                 new Vector2(0.16f, 0.1f), 0.14f, 11);
+            Sprite bcsdCharacter = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GravityRelay/Art/BCSDCharacter.png");
+            if (bcsdCharacter != null)
+            {
+                body.gameObject.name = "BCSD Character";
+                body.sprite = bcsdCharacter;
+                body.color = Color.white;
+                body.transform.localScale = Vector3.one * 1.15f;
+                foreach (Transform child in body.transform) child.gameObject.SetActive(false);
+            }
             var hud = new GameObject("Relay Input and HUD", typeof(RelayPresentation));
             hud.GetComponent<RelayPresentation>().Configure(player, camera, marker, body,
                 AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/Settings/InputSystem_Actions.inputactions"));
+            hud.GetComponent<RelayPresentation>().ConfigureCharacter(bcsdCharacter, disc);
             hud.GetComponent<RelayPresentation>().ConfigureTypography(
                 AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-Regular.otf"),
                 AssetDatabase.LoadAssetAtPath<Font>("Assets/GravityRelay/Art/Fonts/Pretendard-SemiBold.otf"));

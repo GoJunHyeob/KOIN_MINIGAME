@@ -24,6 +24,7 @@ namespace GravityRelay
         [SerializeField] private SpriteRenderer targetMarker;
         [SerializeField] private InputActionAsset inputActions;
         [SerializeField] private Sprite bcsdSprite;
+        [SerializeField] private Sprite feedbackParticleSprite;
         [SerializeField] private SpriteRenderer mascot;
         [Header("Replace placeholder assets here")]
         [SerializeField] private AudioClip launchSound;
@@ -82,6 +83,12 @@ namespace GravityRelay
             targetMarker = marker;
             mascot = character;
             inputActions = actions;
+        }
+
+        public void ConfigureCharacter(Sprite character, Sprite particleDot)
+        {
+            bcsdSprite = character;
+            feedbackParticleSprite = particleDot;
         }
 
         public void ConfigureTypography(Font regular, Font emphasis)
@@ -150,7 +157,7 @@ namespace GravityRelay
             player.SetGameplayActive(false);
             initialized = true;
             BlockTransitionInput();
-            Sprite particleDot = mascot.sprite;
+            Sprite particleDot = feedbackParticleSprite != null ? feedbackParticleSprite : mascot.sprite;
             mascotBaseColor = mascot.color;
             mascotBaseScale = mascot.transform.localScale;
             mascotBaseRotation = mascot.transform.localRotation;
@@ -453,7 +460,9 @@ namespace GravityRelay
             {
                 Vector2 direction = player.LaunchDirection;
                 Vector2 normal = new Vector2(-direction.y, direction.x);
-                Vector2 start = (Vector2)player.transform.position + direction * 0.48f;
+                Vector2 extents = mascot.bounds.extents;
+                float characterEdge = Mathf.Abs(direction.x) * extents.x + Mathf.Abs(direction.y) * extents.y;
+                Vector2 start = (Vector2)player.transform.position + direction * (characterEdge + 0.08f);
                 Vector2 tip = start + direction * arrowLength;
                 float head = Mathf.Min(0.22f, arrowLength * 0.35f);
                 launchArrow.startWidth = launchArrow.endWidth = arrowWidth;

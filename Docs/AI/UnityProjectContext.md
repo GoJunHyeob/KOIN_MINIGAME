@@ -58,3 +58,6 @@ User workflow: skip automated tests, Play checks and build/compile validation af
 
 
 2026-10-31 combo/feedback: RelayPlayer owns Combo/PeakCombo and Launched/Landed/Died events. RelayFeedback subscribes for bounded pooled particles, two soft ring glows, placeholder face expressions and three original synthesized placeholder WAV clips. Presentation exposes replacement Sprite/AudioClip slots, volume and visual cap. Bottom opaque high-contrast score/combo HUD and pointer-only UI with a pause button; pause hit rect excluded from launch, IMGUI keyboard activation suppressed. Native Android Back only in device builds. Original BCSD art/audio unavailable. No tests/Play/compile/audiovisual validation executed. See Docs/GravityRelayComboFeedback.md.
+
+
+2026-10-31 BCSD original: user-supplied transparent 512px PNG copied unchanged to Art/BCSDCharacter.png, directly wired in scene SpriteRenderer and Presentation. PPU320, child scale1.15, white tint; placeholder eyes disabled. Dedicated Feedback Particle Sprite retains Disc; dynamic tangent arrow offset respects sprite bounds. User provided one pose only, so expression slots remain optional and no procedural face overlays are drawn on the logo. User scene tuning preserved. No tests/Play/compile/editor visual validation executed.
